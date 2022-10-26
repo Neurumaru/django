@@ -1,10 +1,10 @@
 # ./Dockerfile
-FROM python
+FROM python:3
 WORKDIR /usr/src/app
 
 # Install packages
 COPY . .
-RUN pip install -r requirements.txt
+RUN pip3 install -r requirements.txt
 
 # Ports
 EXPOSE 80
