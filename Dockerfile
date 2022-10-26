@@ -1,11 +1,10 @@
 # ./Dockerfile
 FROM python:3
+
 WORKDIR /usr/src/app
 
 # Install packages
-COPY . .
-RUN pip install -r requirements.txt
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Ports
-EXPOSE 80
-EXPOSE 443
+COPY . .
