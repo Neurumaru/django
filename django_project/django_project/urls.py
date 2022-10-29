@@ -15,10 +15,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from api_token_auth import views as api_token_auth_views
 from reverse_ssh_api import urls as reverse_ssh_urls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls')),
     path('api/', include(reverse_ssh_urls)),
+    path('api-token-auth/', api_token_auth_views.api_token_auth)
 ]

@@ -11,5 +11,5 @@ router.register(r'ram', RAMView)
 router.register(r'gpu', GPUView)
 
 urlpatterns = [
-   path('', include(router.urls)),
+   path('v1/', include(router.urls)),
 ]
