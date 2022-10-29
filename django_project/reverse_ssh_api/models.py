@@ -1,4 +1,5 @@
 from doctest import master
+from enum import unique
 from django.db import models
 
 class ReservedPort(models.Model):
@@ -12,7 +13,7 @@ class UsedPort(models.Model):
         on_delete=models.CASCADE)
 
 class CPU(models.Model):
-    port = models.OneToOneField(
+    used_port = models.OneToOneField(
         UsedPort, 
         related_name='cpu', 
         on_delete=models.CASCADE)
@@ -21,7 +22,7 @@ class CPU(models.Model):
     cpu_count = models.IntegerField()
 
 class RAM(models.Model):
-    port = models.OneToOneField(
+    used_port = models.OneToOneField(
         UsedPort, 
         related_name='ram', 
         on_delete=models.CASCADE)
@@ -30,10 +31,14 @@ class RAM(models.Model):
     ram_used_size = models.IntegerField()
     
 class GPU(models.Model):
-    port = models.ForeignKey(
+    class Meta:
+        unique_together = ('used_port', 'gpu_index')
+
+    used_port = models.ForeignKey(
         UsedPort,
         related_name='gpus', 
         on_delete=models.CASCADE)
+    gpu_index = models.IntegerField()
     gpu_name = models.CharField(max_length=512)
     gpu_total_size = models.IntegerField()
     gpu_free_size = models.IntegerField()

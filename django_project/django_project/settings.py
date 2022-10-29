@@ -26,6 +26,7 @@ SECRET_KEY = 'django-insecure-7nmu7(%#zuth6c%*6s!40vh=95jmi!p99(3iz#qryyfs9f&#^j
 DEBUG = True
 
 ALLOWED_HOSTS = [
+    'localhost',
     '192.168.219.151'
 ]
 
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'django_filters',
     'reverse_ssh_api'
 ]
 
