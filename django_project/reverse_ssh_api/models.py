@@ -1,9 +1,16 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 
 class ReservedPort(models.Model):
-    reserved_port = models.IntegerField(primary_key=True)
+    reserved_port = models.IntegerField(
+        primary_key=True,
+        validators=[
+            MinValueValidator(1024), 
+            MaxValueValidator(65535)
+        ]
+    )
 
 class UsedPort(models.Model):
     used_port = models.OneToOneField(

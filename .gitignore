@@ -12,4 +12,4 @@ media
 *.http
 
 # Test file
-test*.*
+test.py
