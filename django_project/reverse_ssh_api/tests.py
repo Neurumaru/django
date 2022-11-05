@@ -278,4 +278,4 @@ class UsedPortTestCase(APITestCase):
         response = self.client.get(self.url, format=self.format)
 
         self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(len(response.data), self.usedport_count + 1)
+        self.assertEqual(len(response.data), 2)
