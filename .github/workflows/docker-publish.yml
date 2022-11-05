@@ -7,6 +7,12 @@ on:
       - 'develop'
     tags:
       - 'v*'
+  pull_request:
+    branches: 
+      - 'main'
+      - 'develop'
+    tags:
+      - 'v*'
 
 jobs:
   docker:
