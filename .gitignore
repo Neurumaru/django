@@ -10,3 +10,6 @@ media
 
 # REST Client
 *.http
+
+# Test file
+test*.*

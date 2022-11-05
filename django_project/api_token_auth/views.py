@@ -1,8 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth import authenticate
-from rest_framework.status import *
-from rest_framework.views import APIView
-from rest_framework.permissions import *
+from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
