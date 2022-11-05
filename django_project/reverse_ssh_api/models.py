@@ -20,6 +20,7 @@ class UsedPort(models.Model):
         on_delete=models.CASCADE)
     user = models.ForeignKey(
         User,
+        related_name='used_port',
         on_delete=models.CASCADE)
 
 class CPUSpec(models.Model):
