@@ -5,7 +5,7 @@ from reverse_ssh_api.serializers import *
 from reverse_ssh_api.models import *
 from django.contrib.auth.models import User
 from rest_framework.response import Response
-from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
+from rest_framework.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 
 class ReservedPortView(ModelViewSet):
     queryset = ReservedPort.objects.all()
@@ -14,6 +14,9 @@ class ReservedPortView(ModelViewSet):
     permission_classes = [
         IsAdminUser
     ]
+
+    def update(self, request, *args, **kwargs):
+        return Response(status=HTTP_400_BAD_REQUEST)
 
 class UsedPortView(ModelViewSet):
     queryset = UsedPort.objects.all()
@@ -24,7 +27,7 @@ class UsedPortView(ModelViewSet):
         user = User.objects.get(username=request.user)
         if serializer.is_valid() and user is not None:
             serializer.save(user=user)
-            return Response(status=HTTP_201_CREATED)
+            return Response(serializer.data, status=HTTP_201_CREATED)
         else:
             return Response(status=HTTP_400_BAD_REQUEST)
 
@@ -37,6 +40,20 @@ class UsedPortView(ModelViewSet):
             queryset = self.get_queryset().filter(user=self.request.user)
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        if request.user.is_superuser:
+            return super().destroy(request, *args, **kwargs)
+        else:
+            instance = self.get_object()
+            if instance.user == request.user:
+                self.perform_destroy(instance)
+                return Response(status=HTTP_204_NO_CONTENT)
+            else:
+                return Response(status=HTTP_403_FORBIDDEN)
+
+    def update(self, request, *args, **kwargs):
+        return Response(status=HTTP_404_NOT_FOUND)
     
 class FreePortView(ModelViewSet):
     queryset = ReservedPort.objects.values('reserved_port').difference(UsedPort.objects.values('used_port'))

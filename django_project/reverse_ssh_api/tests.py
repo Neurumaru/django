@@ -1,281 +1,311 @@
-from django.urls import reverse
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework.status import *
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 from reverse_ssh_api.models import *
 
-
-# ====================================================================================================
-# Reserved Port Tests
-#  - GET /api/reserved_ports/
-#  - POST /api/reserved_ports/
-#  - DELETE /api/reserved_ports/<pk>/
-# ====================================================================================================
-class ReservedPortTestCase(APITestCase):
-    def setUp(self):
-        # Create user and superuser
-        self.user = User.objects.create_user(username='user', password='user')
-        self.token_user, _ = Token.objects.get_or_create(user=self.user)
-        self.superuser = User.objects.create_superuser(username='superuser', password='superuser')
-        self.token_superuser, _ = Token.objects.get_or_create(user=self.superuser)
-
-        # url and format
-        self.url = '/api/reserved-port/'
-        self.format = 'json'
-
-    # ====================================================================================================
-    # Authentication Tests
-    #  - Only superuser can access the reserved port API
-    # ====================================================================================================
-    def test_superuser_get_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        response = self.client.get(self.url, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(response.data, [])
-
-    def test_superuser_post_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-        response = self.client.get(self.url, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(response.data, [data])
-
-    def test_superuser_delete_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-        response = self.client.delete(f'{self.url}10000/', format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_204_NO_CONTENT)
-        self.assertEqual(ReservedPort.objects.count(), 0)
-
-    def test_user_get_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user.key)
-        response = self.client.get(self.url, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_403_FORBIDDEN)
-        self.assertEqual(response.data, {'detail': 'You do not have permission to perform this action.'})
-
-    def test_user_post_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user.key)
-        data = {'reserved_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_403_FORBIDDEN)
-        self.assertEqual(ReservedPort.objects.count(), 0)
-
-    def test_user_delete_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user.key)
-        response = self.client.delete(self.url + '10000/', format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_403_FORBIDDEN)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-    def test_anonymous_get_reservedport(self):
-        response = self.client.get(self.url, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_401_UNAUTHORIZED)
-        self.assertEqual(response.data, {'detail': 'Authentication credentials were not provided.'})
-
-    def test_anonymous_post_reservedport(self):
-        data = {'reserved_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_401_UNAUTHORIZED)
-        self.assertEqual(ReservedPort.objects.count(), 0)
-        
-    def test_anonymous_delete_reservedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-        self.client.credentials(HTTP_AUTHORIZATION='')
-        response = self.client.delete(self.url + '10000/', format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_401_UNAUTHORIZED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-    # ====================================================================================================
-    # Boundary Tests
-    # - reserved_port must be between 1024 and 65535
-    # ====================================================================================================
-    def test_post_reservedport_boundary_lower_than_min_value(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 1023}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
-        self.assertEqual(ReservedPort.objects.count(), 0)
-    
-    def test_post_reservedport_boundary_equal_to_min_value(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 1024}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-    def test_post_reservedport_boundary_greater_than_min_value(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 1025}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-    def test_post_reservedport_boundary_lower_than_max_value(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 65534}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-    def test_post_reservedport_boundary_equal_to_max_value(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 65535}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 1)
-
-    def test_post_reservedport_boundary_greater_than_max_value(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser.key)
-        data = {'reserved_port': 65536}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
-        self.assertEqual(ReservedPort.objects.count(), 0)
-
-# ====================================================================================================
-# Used Ports Tests
-#  - GET /api/v1/used_ports/
-#  - POST /api/v1/used_ports/
-#  - DELETE /api/v1/used_ports/<int:used_port>/
-#  - GET /api/v1/free_ports/
-# ====================================================================================================
-class UsedPortTestCase(APITestCase):
+# ==============================================================================
+# Custom Test Case
+# ==============================================================================
+class ReverseSSHAPITestCase(APITestCase):
+    # ==============================================================================
+    # Default setUp
     def setUp(self):
         # Create user and superuser
         self.superuser1 = User.objects.create_superuser(username='superuser1', password='superuser')
         self.superuser2 = User.objects.create_superuser(username='superuser2', password='superuser')
         self.token_superuser1, _ = Token.objects.get_or_create(user=self.superuser1)
+        self.token_superuser2, _ = Token.objects.get_or_create(user=self.superuser2)
         self.user1 = User.objects.create_user(username='user1', password='user')
         self.user2 = User.objects.create_user(username='user2', password='user')
         self.token_user1, _ = Token.objects.get_or_create(user=self.user1)
         self.token_user2, _ = Token.objects.get_or_create(user=self.user2)
 
-        # url and format
-        self.url = '/api/used-port/'
+        # urls
+        self.reserved_port_url = '/api/reserved-port/'
+        self.used_port_url = '/api/used-port/'
+        self.free_port_url = '/api/free-port/'
+
+        # format    
         self.format = 'json'
+    # ==============================================================================
+    # Client
+    def _client_get(self, url:str, token:Token=None, format:str='json'):
+        if token is not None:
+            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        else:
+            self.client.credentials(HTTP_AUTHORIZATION='')
+        response = self.client.get(url, format=format)
+        return response
 
-        # Setup Used Ports database
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}, {'reserved_port': 10003}]
-        for data in data_list:
-            response = self.client.post('/api/reserved-port/', data, format=self.format)
-            self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(ReservedPort.objects.count(), 4)
+    def _client_post(self, url:str, request_data, token:Token=None, format:str='json'):
+        if token is not None:
+            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        else:
+            self.client.credentials(HTTP_AUTHORIZATION='')
+        response = self.client.post(url, request_data, format=format)
+        return response
 
-        data = {'used_port': 10000}
-        response = self.client.post(self.url, data, format=self.format)
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(UsedPort.objects.count(), 1)
+    def _client_delete(self, url:str, token:Token=None, format:str='json'):
+        if token is not None:
+            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        else:
+            self.client.credentials(HTTP_AUTHORIZATION='')
+        response = self.client.delete(url, format=format)
+        return response
 
-        data = {'used_port': 10001}
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
-        response = self.client.post(self.url, data, format=self.format)
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(UsedPort.objects.count(), 2)
+    def _client_put(self, url:str, request_data, token:Token=None, format:str='json'):
+        if token is not None:
+            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        else:
+            self.client.credentials(HTTP_AUTHORIZATION='')
+        response = self.client.put(url, request_data, format=format)
+        return response
+    # ==============================================================================
+    # Assert response
+    def _assert_response(self, response, expected_status_code, expected_data=None, expected_data_len:int=None, count_function=None, expected_count:int=None):
+        self.assertEqual(response.status_code, expected_status_code)
+        if expected_data is not None:
+            self.assertEqual(response.data, expected_data)
+        if expected_data_len is not None:
+            self.assertEqual(len(response.data), expected_data_len)
+        if count_function is not None and expected_count is not None:
+            self.assertEqual(count_function(), expected_count)
+    # ==============================================================================
+    # Test
+    def _test_get(self, url:str, token:Token=None, expected_status_code:int=HTTP_200_OK, expected_data=None, expected_data_len:int=None, count_function=None, expected_count:int=None):
+        response = self._client_get(url, token)
+        self._assert_response(response, expected_status_code, expected_data, expected_data_len, count_function, expected_count)
 
-        data = {'used_port': 10003}
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user2.key)
-        response = self.client.post(self.url, data, format=self.format)
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(UsedPort.objects.count(), 3)
+    def _test_post(self, url:str, request_data, token:Token=None, expected_status_code:int=HTTP_201_CREATED, expected_data=None, expected_data_len:int=None, count_function=None, expected_count:int=None):
+        response = self._client_post(url, request_data, token)
+        self._assert_response(response, expected_status_code, expected_data, expected_data_len, count_function, expected_count)
 
-        self.reservedport_count = ReservedPort.objects.count()
-        self.usedport_count = UsedPort.objects.count()
+    def _test_delete(self, url:str, token:Token=None, expected_status_code:int=HTTP_204_NO_CONTENT, expected_data=None, expected_data_len:int=None, count_function=None, expected_count:int=None):
+        response = self._client_delete(url, token)
+        self._assert_response(response, expected_status_code, expected_data, expected_data_len, count_function, expected_count)
 
+    def _test_update(self, url:str, request_data, token:Token=None, expected_status_code:int=HTTP_200_OK, expected_data=None, expected_data_len:int=None, count_function=None, expected_count:int=None):
+        response = self._client_put(url, request_data, token)
+        self._assert_response(response, expected_status_code, expected_data, expected_data_len, count_function, expected_count)
+# ====================================================================================================
+# Reserved Port Tests
+# - GET /api/reserved_ports/
+# - POST /api/reserved_ports/
+# - DELETE /api/reserved_ports/<pk>/
+# ====================================================================================================
+class ReservedPortTestCase(ReverseSSHAPITestCase):
+    def setUp(self):
+        super().setUp()
+
+        # Reserved port count
+        self.reserved_port_count = ReservedPort.objects.count()
 
     # ====================================================================================================
     # Authentication Tests
-    #  - User can get, post, and delete own used ports
-    #  - Superuser can get, post, and delete any used port
-    #  - User and superuser can get free ports
+    # - Only superuser can access the reserved port API
     # ====================================================================================================
-    def test_superuser_get_usedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        response = self.client.get(self.url, format=self.format)
+    # 1. Superuser
+    def test_superuser_get_reservedport(self):
+        self._test_get(self.reserved_port_url, self.token_superuser1, HTTP_200_OK, [], 0, ReservedPort.objects.count, 0)
 
-        self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(len(response.data), self.usedport_count)
+    def test_superuser_post_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_get(self.reserved_port_url, self.token_superuser1, HTTP_200_OK, [data], 1, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_superuser_delete_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_delete(self.reserved_port_url + '10000/', self.token_superuser1, HTTP_204_NO_CONTENT, None, None, ReservedPort.objects.count, self.reserved_port_count)
+
+    def test_superuser_update_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        data = {'reserved_port': 10001}
+        self._test_update(self.reserved_port_url + '10000/', data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+    # ====================================================================================================
+    # 2. User
+    def test_user_get_reservedport(self):
+        self._test_get(self.reserved_port_url, self.token_user1, HTTP_403_FORBIDDEN, {'detail': 'You do not have permission to perform this action.'}, None, ReservedPort.objects.count, self.reserved_port_count)   
+
+    def test_user_post_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_user1, HTTP_403_FORBIDDEN, {'detail': 'You do not have permission to perform this action.'}, None, ReservedPort.objects.count, self.reserved_port_count)
+
+    def test_user_delete_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_delete(self.reserved_port_url + '10000/', self.token_user1, HTTP_403_FORBIDDEN, {'detail': 'You do not have permission to perform this action.'}, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_user_update_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        data = {'reserved_port': 10001}
+        self._test_update(self.reserved_port_url + '10000/', data, self.token_user1, HTTP_403_FORBIDDEN, {'detail': 'You do not have permission to perform this action.'}, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+    # ====================================================================================================
+    # 3. Anonymous
+    def test_anonymous_get_reservedport(self):
+        self._test_get(self.reserved_port_url, None, HTTP_401_UNAUTHORIZED, {'detail': 'Authentication credentials were not provided.'}, None, ReservedPort.objects.count, self.reserved_port_count)
+
+    def test_anonymous_post_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, None, HTTP_401_UNAUTHORIZED, {'detail': 'Authentication credentials were not provided.'}, None, ReservedPort.objects.count, self.reserved_port_count)
+        
+    def test_anonymous_delete_reservedport(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_delete(self.reserved_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, {'detail': 'Authentication credentials were not provided.'}, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+    # ====================================================================================================
+    # Syntax Tests
+    # - User can't post a reserved port that is already reserved
+    # - User can't post used port that is not an integer (char, float, etc.)
+    # ====================================================================================================
+    def test_superuser_post_reservedport_already_reserved(self):
+        data = {'reserved_port': 10000}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, {'reserved_port': ['reserved port with this reserved port already exists.']}, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_superuser_post_reservedport_not_integer_char(self):
+        data = {'reserved_port': 'test'}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, {'reserved_port': ['A valid integer is required.']}, None, ReservedPort.objects.count, self.reserved_port_count)
+
+    def test_superuser_post_reservedport_not_integer_float(self):
+        data = {'reserved_port': 1024.5}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, {'reserved_port': ['A valid integer is required.']}, None, ReservedPort.objects.count, self.reserved_port_count)
+    # ====================================================================================================
+    # Boundary Tests
+    # - reserved_port must be between 1024 and 65535
+    # ====================================================================================================
+    def test_post_reservedport_boundary_lower_than_min_value(self):
+        data = {'reserved_port': 1023}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, {'reserved_port': ['Ensure this value is greater than or equal to 1024.']}, None, ReservedPort.objects.count, self.reserved_port_count)
+    
+    def test_post_reservedport_boundary_equal_to_min_value(self):
+        data = {'reserved_port': 1024}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_post_reservedport_boundary_greater_than_min_value(self):
+        data = {'reserved_port': 1025}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_post_reservedport_boundary_lower_than_max_value(self):
+        data = {'reserved_port': 65534}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_post_reservedport_boundary_equal_to_max_value(self):
+        data = {'reserved_port': 65535}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+
+    def test_post_reservedport_boundary_greater_than_max_value(self):
+        data = {'reserved_port': 65536}
+        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, {'reserved_port': ['Ensure this value is less than or equal to 65535.']}, None, ReservedPort.objects.count, self.reserved_port_count)
+# ====================================================================================================
+# Used Ports Tests
+# - GET /api/v1/used_ports/
+# - POST /api/v1/used_ports/
+# - DELETE /api/v1/used_ports/<int:used_port>/
+# - GET /api/v1/free_ports/
+# ====================================================================================================
+class UsedPortTestCase(ReverseSSHAPITestCase):
+    def setUp(self):
+        super().setUp()
+
+        # Setup Used Ports database
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
+        self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}]
+        for data in self.data_list:
+            self._client_post(self.reserved_port_url, data, self.token_superuser1)
+        self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
+
+        data = {'used_port': 10000}
+        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, UsedPort.objects.count, 1)
+
+        data = {'used_port': 10001}
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, UsedPort.objects.count, 2)
+
+        self.reserved_port_count = ReservedPort.objects.count()
+        self.used_port_count = UsedPort.objects.count()
+    # ====================================================================================================
+    # Authentication Tests
+    # - User can get, post, and delete own used ports
+    # - Superuser can get, post, and delete any used port
+    # - User and superuser can get free ports
+    # ====================================================================================================
+    # 1. Superuser
+    def test_superuser_get_usedport(self):
+        self._test_get(self.used_port_url, self.token_superuser1, HTTP_200_OK, None, self.used_port_count, UsedPort.objects.count, self.used_port_count)
 
     def test_superuser_post_usedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
         data = {'used_port': 10002}
-        response = self.client.post(self.url, data, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(UsedPort.objects.count(), self.usedport_count + 1)
-
-        response = self.client.get(self.url, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(len(response.data), self.usedport_count + 1)
+        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, UsedPort.objects.count, self.used_port_count + 1)
+        self._test_get(self.used_port_url, self.token_superuser1, HTTP_200_OK, None, self.used_port_count + 1, UsedPort.objects.count, self.used_port_count + 1)
 
     def test_superuser_delete_own_usedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        response = self.client.delete(self.url + '10000/', format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_204_NO_CONTENT)
-        self.assertEqual(UsedPort.objects.count(), self.usedport_count - 1)
+        self._test_delete(self.used_port_url + '10000/', self.token_superuser1, HTTP_204_NO_CONTENT, None, None, UsedPort.objects.count, self.used_port_count - 1)
 
     def test_superuser_delete_other_user_usedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        response = self.client.delete(self.url + '10001/', format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_204_NO_CONTENT)
-        self.assertEqual(UsedPort.objects.count(), self.usedport_count - 1)
-
+        self._test_delete(self.used_port_url + '10000/', self.token_superuser2, HTTP_204_NO_CONTENT, None, None, UsedPort.objects.count, self.used_port_count - 1)
+    # ====================================================================================================
+    # 2. User
     def test_user_get_userport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
-        response = self.client.get(self.url, format=self.format)
-
-        self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self._test_get(self.used_port_url, self.token_user1, HTTP_200_OK, None, 1, UsedPort.objects.count, self.used_port_count)
 
     def test_user_post_usedport(self):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
         data = {'used_port': 10002}
-        response = self.client.post(self.url, data, format=self.format)
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, UsedPort.objects.count, self.used_port_count + 1)
+        self._test_get(self.used_port_url, self.token_user1, HTTP_200_OK, None, 2, UsedPort.objects.count, self.used_port_count + 1)
 
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-        self.assertEqual(UsedPort.objects.count(), self.usedport_count + 1)
+    def test_user_delete_own_userport(self):
+        self._test_delete(self.used_port_url + '10001/', self.token_user1, HTTP_204_NO_CONTENT, None, None, UsedPort.objects.count, self.used_port_count - 1)
 
-        response = self.client.get(self.url, format=self.format)
+    def test_user_delete_other_user_usedport(self):
+        self._test_delete(self.used_port_url + '10001/', self.token_user2, HTTP_403_FORBIDDEN, None, None, UsedPort.objects.count, self.used_port_count)
+    # ====================================================================================================
+    # 3. Anonymous
+    def test_anonymous_get_usedport(self):
+        self._test_get(self.used_port_url, None, HTTP_401_UNAUTHORIZED, {'detail': 'Authentication credentials were not provided.'}, None, UsedPort.objects.count, self.used_port_count)
 
-        self.assertEqual(response.status_code, HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+    def test_anonymous_post_usedport(self):
+        data = {'used_port': 10002}
+        self._test_post(self.used_port_url, data, None, HTTP_401_UNAUTHORIZED, {'detail': 'Authentication credentials were not provided.'}, None, UsedPort.objects.count, self.used_port_count)
+
+    def test_anonymous_delete_usedport(self):
+        self._test_delete(self.used_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, {'detail': 'Authentication credentials were not provided.'}, None, UsedPort.objects.count, self.used_port_count)
+    # ====================================================================================================
+    # Syntax Tests
+    # - User can't post used port that is not reserved
+    # - User can't post used port that is already used
+    # - User can't post used port that is not an integer
+    # ==================================================================================================== 
+    def test_user_post_usedport_not_reserved(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
+        data = {'used_port': 10003}
+        response = self.client.post(self.used_port_url, data, format=self.format)
+
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+        self.assertEqual(UsedPort.objects.count(), self.used_port_count)
+
+    def test_user_post_usedport_already_used(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
+        data = {'used_port': 10001}
+        response = self.client.post(self.used_port_url, data, format=self.format)
+
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+        self.assertEqual(UsedPort.objects.count(), self.used_port_count)
+
+    def test_user_post_usedport_not_integer_char(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
+        data = {'used_port': '10001'}
+        response = self.client.post(self.used_port_url, data, format=self.format)
+
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+        self.assertEqual(UsedPort.objects.count(), self.used_port_count)
+
+    def test_user_post_usedport_not_integer_float(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_user1.key)
+        data = {'used_port': 10001.0}
+        response = self.client.post(self.used_port_url, data, format=self.format)
+
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+        self.assertEqual(UsedPort.objects.count(), self.used_port_count)
