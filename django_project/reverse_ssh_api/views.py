@@ -29,7 +29,7 @@ class UsedPortView(ModelViewSet):
             serializer.save(user=user)
             return Response(serializer.data, status=HTTP_201_CREATED)
         else:
-            return Response(status=HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
 
     def list(self, request):
         if request.user.is_superuser:
