@@ -133,7 +133,7 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
         data = {'reserved_port': 10000}
         self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
         data = {'reserved_port': 10001}
-        self._test_update(self.reserved_port_url + '10000/', data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_update(self.reserved_port_url + '10000/', data, self.token_superuser1, HTTP_404_NOT_FOUND, None, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
     # ====================================================================================================
     # 2. User
     def test_user_get_reservedport(self):
@@ -243,8 +243,8 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self.used_port_count = UsedPort.objects.count()
     # ====================================================================================================
     # Authentication Tests
-    # - User can get, post, and delete own used ports
     # - Superuser can get, post, and delete any used port
+    # - User can get, post, and delete own used ports
     # - User and superuser can get free ports
     # ====================================================================================================
     # 1. Superuser
@@ -275,18 +275,18 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self._test_delete(self.used_port_url + '10001/', self.token_user1, HTTP_204_NO_CONTENT, None, None, None, UsedPort.objects.count, self.used_port_count - 1)
 
     def test_user_delete_other_user_usedport(self):
-        self._test_delete(self.used_port_url + '10001/', self.token_user2, HTTP_403_FORBIDDEN, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_delete(self.used_port_url + '10001/', self.token_user2, HTTP_403_FORBIDDEN, None, None, {'detail': 'permission_denied'}, UsedPort.objects.count, self.used_port_count)
     # ====================================================================================================
     # 3. Anonymous
     def test_anonymous_get_usedport(self):
-        self._test_get(self.used_port_url, None, HTTP_401_UNAUTHORIZED, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_get(self.used_port_url, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
 
     def test_anonymous_post_usedport(self):
         data = {'used_port': 10002}
-        self._test_post(self.used_port_url, data, None, HTTP_401_UNAUTHORIZED, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_post(self.used_port_url, data, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
 
     def test_anonymous_delete_usedport(self):
-        self._test_delete(self.used_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_delete(self.used_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
     # ====================================================================================================
     # Syntax Tests
     # - User can't post used port that is not reserved
@@ -296,20 +296,61 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # ==================================================================================================== 
     def test_user_post_usedport_not_reserved(self):
         data = {'used_port': 10003}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['does_not_exist']}, UsedPort.objects.count, self.used_port_count)
 
     def test_user_post_usedport_already_used(self):
         data = {'used_port': 10001}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['unique']}, UsedPort.objects.count, self.used_port_count)
 
     def test_user_post_usedport_not_integer_char(self):
         data = {'used_port': 'test'}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['incorrect_type']}, UsedPort.objects.count, self.used_port_count)
 
     def test_user_post_usedport_not_integer_float(self):
         data = {'used_port': 10001.5}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['invalid']}, UsedPort.objects.count, self.used_port_count)
     
     def test_user_post_usedport_not_integer_float(self):
         data = {}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, None, UsedPort.objects.count, self.used_port_count)
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['required']}, UsedPort.objects.count, self.used_port_count)
+# ====================================================================================================
+# Free Ports Tests
+# - GET /api/v1/free_ports/
+# ====================================================================================================
+class FreePortTestCase(ReverseSSHAPITestCase):
+    def setUp(self):
+        super().setUp()
+
+        # Setup Used Ports database
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
+        self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}]
+        for data in self.data_list:
+            self._client_post(self.reserved_port_url, data, self.token_superuser1)
+        self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
+
+        data = {'used_port': 10000}
+        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 1)
+
+        data = {'used_port': 10001}
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 2)
+
+        self.reserved_port_count = ReservedPort.objects.count()
+        self.used_port_count = UsedPort.objects.count()
+        self.free_port_count = self.reserved_port_count - self.used_port_count
+
+    # ====================================================================================================
+    # Authentication Tests
+    # - Superuser can get free ports
+    # - User can get free ports
+    # ====================================================================================================
+    # 1. Superuser
+    def test_superuser_get_freeport(self):
+        self._test_get(self.free_port_url, self.token_superuser1, HTTP_200_OK, None, self.free_port_count, None, None, None)
+    # ====================================================================================================
+    # 2. User
+    def test_user_get_freeport(self):
+        self._test_get(self.free_port_url, self.token_user1, HTTP_200_OK, None, self.free_port_count, None, None, None)
+    # ====================================================================================================
+    # 3. Anonymous
+    def test_anonymous_get_freeport(self):
+        self._test_get(self.free_port_url, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, None, None)
