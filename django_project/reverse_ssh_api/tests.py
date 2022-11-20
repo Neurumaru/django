@@ -133,7 +133,7 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
         data = {'reserved_port': 10000}
         self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
         data = {'reserved_port': 10001}
-        self._test_update(self.reserved_port_url + '10000/', data, self.token_superuser1, HTTP_404_NOT_FOUND, None, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_update(self.reserved_port_url + '10000/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
     # ====================================================================================================
     # 2. User
     def test_user_get_reservedport(self):
@@ -245,7 +245,8 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # Authentication Tests
     # - Superuser can get, post, and delete any used port
     # - User can get, post, and delete own used ports
-    # - User and superuser can get free ports
+    # - Anonymous user cannot get, post, or delete used ports
+    # - All Users cannot update used ports
     # ====================================================================================================
     # 1. Superuser
     def test_superuser_get_usedport(self):
@@ -261,6 +262,14 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
 
     def test_superuser_delete_other_user_usedport(self):
         self._test_delete(self.used_port_url + '10000/', self.token_superuser2, HTTP_204_NO_CONTENT, None, None, None, UsedPort.objects.count, self.used_port_count - 1)
+
+    def test_superuser_update_own_usedport(self):
+        data = {'used_port': 10002}
+        self._test_update(self.used_port_url + '10000/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, UsedPort.objects.count, self.used_port_count)
+
+    def test_superuser_update_other_user_usedport(self):
+        data = {'used_port': 10002}
+        self._test_update(self.used_port_url + '10000/', data, self.token_superuser2, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, UsedPort.objects.count, self.used_port_count)
     # ====================================================================================================
     # 2. User
     def test_user_get_userport(self):
@@ -276,6 +285,14 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
 
     def test_user_delete_other_user_usedport(self):
         self._test_delete(self.used_port_url + '10001/', self.token_user2, HTTP_403_FORBIDDEN, None, None, {'detail': 'permission_denied'}, UsedPort.objects.count, self.used_port_count)
+
+    def test_user_update_own_usedport(self):
+        data = {'used_port': 10002}
+        self._test_update(self.used_port_url + '10001/', data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, UsedPort.objects.count, self.used_port_count)
+
+    def test_user_update_other_user_usedport(self):
+        data = {'used_port': 10002}
+        self._test_update(self.used_port_url + '10001/', data, self.token_user2, HTTP_403_FORBIDDEN, None, None, {'detail': 'permission_denied'}, UsedPort.objects.count, self.used_port_count)
     # ====================================================================================================
     # 3. Anonymous
     def test_anonymous_get_usedport(self):
@@ -287,6 +304,10 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
 
     def test_anonymous_delete_usedport(self):
         self._test_delete(self.used_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
+
+    def test_anonymous_update_usedport(self):
+        data = {'used_port': 10002}
+        self._test_update(self.used_port_url + '10000/', data, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
     # ====================================================================================================
     # Syntax Tests
     # - User can't post used port that is not reserved
@@ -346,6 +367,11 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     # 1. Superuser
     def test_superuser_get_freeport(self):
         self._test_get(self.free_port_url, self.token_superuser1, HTTP_200_OK, None, self.free_port_count, None, None, None)
+    def test_superuser_post_freeport(self):
+        data = {'reserved_port': 10003}
+        self._test_post(self.free_port_url, data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+    def test_superuser_delete_freeport(self):
+        self._test_delete(self.free_port_url + '10000/', self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
     # ====================================================================================================
     # 2. User
     def test_user_get_freeport(self):

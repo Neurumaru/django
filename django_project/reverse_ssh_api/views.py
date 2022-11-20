@@ -5,8 +5,10 @@ from reverse_ssh_api.serializers import *
 from reverse_ssh_api.models import *
 from django.contrib.auth.models import User
 from rest_framework.response import Response
-from rest_framework.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
-from rest_framework.exceptions import ErrorDetail
+from rest_framework.status import \
+    HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, \
+    HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN
+from rest_framework.exceptions import MethodNotAllowed, PermissionDenied
 
 class ReservedPortView(ModelViewSet):
     queryset = ReservedPort.objects.all()
@@ -17,7 +19,7 @@ class ReservedPortView(ModelViewSet):
     ]
 
     def update(self, request, *args, **kwargs):
-        return Response(status=HTTP_404_NOT_FOUND)
+        raise MethodNotAllowed(request.method)
 
 class UsedPortView(ModelViewSet):
     queryset = UsedPort.objects.all()
@@ -48,17 +50,32 @@ class UsedPortView(ModelViewSet):
         else:
             instance = self.get_object()
             if instance.user == request.user:
-                self.perform_destroy(instance)
-                return Response(request.data, status=HTTP_204_NO_CONTENT)
+                return super().destroy(request, *args, **kwargs)
             else:
-                return Response({'detail': ErrorDetail('You do not have permission to perform this action.', 'permission_denied')}, status=HTTP_403_FORBIDDEN)
+                raise PermissionDenied()
 
     def update(self, request, *args, **kwargs):
-        return Response(status=HTTP_404_NOT_FOUND)
+        if request.user.is_superuser:
+            raise MethodNotAllowed(request.method)
+        else:
+            instance = self.get_object()
+            if instance.user == request.user:
+                raise MethodNotAllowed(request.method)
+            else:
+                raise PermissionDenied()
     
 class FreePortView(ModelViewSet):
     queryset = ReservedPort.objects.values('reserved_port').difference(UsedPort.objects.values('used_port'))
     serializer_class = ReservedPortSerializer
+
+    def create(self, request):
+        raise MethodNotAllowed(request.method)
+
+    def destroy(self, request, *args, **kwargs):
+        raise MethodNotAllowed(request.method)
+
+    def update(self, request, *args, **kwargs):
+        raise MethodNotAllowed(request.method)
 
 # class CPUView(ModelViewSet):
 #     queryset = CPU.objects.all()
