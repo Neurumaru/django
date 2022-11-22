@@ -1,17 +1,26 @@
 from rest_framework import serializers
 from reverse_ssh_api.models import *
 
-
+# ====================================================================================================
+# ReservedPortSerializer
+# ====================================================================================================
 class ReservedPortSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReservedPort
         fields = ['reserved_port']
 
+# ====================================================================================================
+# UsedPortSerializer (for user)
+# ====================================================================================================
 class UsedPortSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsedPort
         fields = ['used_port']
 
+# ====================================================================================================
+# UsedPortSerializer (for superuser)
+# - Add user field to the read-only fields
+# ====================================================================================================
 class UsedPortAdminSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
@@ -24,6 +33,15 @@ class UsedPortAdminSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'user': {'read_only': True}
         }
+
+# ====================================================================================================
+# CPUSpecSerializer
+# ====================================================================================================
+class CPUSpecSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CPUSpec
+        fields = ['id', 'used_port', 'cpu_arch', 'cpu_bits', 'cpu_count', 'cpu_arch_string_raw', 'cpu_vendor_id_raw', 'cpu_brand_raw', 'cpu_hz_actural_friendly']
+
 
 # class CPUSerializer(serializers.ModelSerializer):
 #     class Meta:

@@ -32,7 +32,6 @@ class ReservedPort(models.Model):
 class UsedPort(models.Model):
     used_port = models.OneToOneField(
         ReservedPort, 
-        related_name='used_port', 
         primary_key=True,
         on_delete=models.CASCADE)
     user = models.ForeignKey(
@@ -68,8 +67,7 @@ class UsedPort(models.Model):
 # ====================================================================================================
 class CPUSpec(models.Model):
     used_port = models.OneToOneField(
-        UsedPort, 
-        related_name='cpu_spec', 
+        UsedPort,
         on_delete=models.CASCADE)
     cpu_arch = models.TextField()
     cpu_bits = models.IntegerField(
@@ -111,7 +109,6 @@ class CPUSpec(models.Model):
 class CPUStat(models.Model):
     cpu_spec = models.ForeignKey(
         CPUSpec,
-        related_name='cpu_stat', 
         on_delete=models.CASCADE)
     cpu_core = models.IntegerField(
         validators=[
@@ -148,7 +145,6 @@ class CPUStat(models.Model):
 class MemorySpec(models.Model):
     used_port = models.OneToOneField(
         UsedPort, 
-        related_name='memory_spec', 
         on_delete=models.CASCADE)
     memory_total = models.BigIntegerField()
     
@@ -181,7 +177,6 @@ class MemorySpec(models.Model):
 class MemoryStat(models.Model):
     memory_spec = models.OneToOneField(
         MemorySpec, 
-        related_name='memory_stat', 
         on_delete=models.CASCADE)
 
     memory_available = models.BigIntegerField()
@@ -241,7 +236,6 @@ class MemoryStat(models.Model):
 class GPUSpec(models.Model):
     used_port = models.ForeignKey(
         UsedPort,
-        related_name='gpus_spec', 
         on_delete=models.CASCADE)
     gpu_index = models.IntegerField()
     gpu_name = models.TextField()
@@ -313,7 +307,6 @@ class GPUSpec(models.Model):
 class GPUStat(models.Model):
     gpu_spec = models.OneToOneField(
         GPUSpec, 
-        related_name='gpu_stat', 
         on_delete=models.CASCADE)
     
     gpu_power_usage = models.IntegerField()

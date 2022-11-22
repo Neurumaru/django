@@ -6,7 +6,7 @@ router = routers.DefaultRouter()
 router.register(r'reserved-port', ReservedPortView)
 router.register(r'used-port', UsedPortView)
 router.register(r'free-port', FreePortView)
-# router.register(r'cpu', CPUView)
+router.register(r'cpu-spec', CPUSpecView)
 # router.register(r'ram', RAMView)
 # router.register(r'gpu', GPUView)
 

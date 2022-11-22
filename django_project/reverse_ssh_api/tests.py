@@ -25,6 +25,7 @@ class ReverseSSHAPITestCase(APITestCase):
         self.reserved_port_url = '/api/reserved-port/'
         self.used_port_url = '/api/used-port/'
         self.free_port_url = '/api/free-port/'
+        self.cpu_spec_url = '/api/cpu-spec/'
 
         # format    
         self.format = 'json'
@@ -102,9 +103,9 @@ class ReverseSSHAPITestCase(APITestCase):
         self._assert_response(response, expected_status_code, expected_data, expected_data_len, expected_error_code, count_function, expected_count)
 # ====================================================================================================
 # Reserved Port Tests
-# - GET /api/reserved-ports/
-# - POST /api/reserved-ports/
-# - DELETE /api/reserved-ports/<pk>/
+# - GET /api/reserved-port/
+# - POST /api/reserved-port/
+# - DELETE /api/reserved-port/<pk>/
 # ====================================================================================================
 class ReservedPortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
@@ -114,7 +115,7 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
         self.reserved_port_count = ReservedPort.objects.count()
 
     # ====================================================================================================
-    # Authentication Tests
+    # Authentication Tests and Method Tests
     # - Only superuser can access the reserved port API
     # ====================================================================================================
     # 1. Superuser
@@ -218,10 +219,10 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
         data = {'reserved_port': 65536}
         self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None, {'reserved_port': ['max_value']}, ReservedPort.objects.count, self.reserved_port_count)
 # ====================================================================================================
-# Used Ports Tests
-# - GET /api/v1/used-ports/
-# - POST /api/v1/used-ports/
-# - DELETE /api/v1/used-ports/<pk>/
+# Used Port Tests
+# - GET /api/v1/used-port/
+# - POST /api/v1/used-port/
+# - DELETE /api/v1/used-port/<pk>/
 # ====================================================================================================
 class UsedPortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
@@ -243,7 +244,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self.reserved_port_count = ReservedPort.objects.count()
         self.used_port_count = UsedPort.objects.count()
     # ====================================================================================================
-    # Authentication Tests
+    # Authentication Tests and Method Tests
     # - Superuser can get, post, and delete any used port
     # - User can get, post, and delete own used ports
     # - Anonymous user cannot get, post, or delete used ports
@@ -336,32 +337,33 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {}
         self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['required']}, UsedPort.objects.count, self.used_port_count)
 # ====================================================================================================
-# Free Ports Tests
-# - GET /api/v1/free-ports/
+# Free Port Tests
+# - GET /api/v1/free-port/
 # ====================================================================================================
 class FreePortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
         super().setUp()
 
-        # Setup Used Ports database
+        # Setup Reserved Port
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
         self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}]
         for data in self.data_list:
             self._client_post(self.reserved_port_url, data, self.token_superuser1)
         self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
 
+        # Setup Used Port
         data = {'used_port': 10000}
         self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 1)
-
         data = {'used_port': 10001}
         self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 2)
 
+        # Setup database count
         self.reserved_port_count = ReservedPort.objects.count()
         self.used_port_count = UsedPort.objects.count()
         self.free_port_count = self.reserved_port_count - self.used_port_count
 
     # ====================================================================================================
-    # Authentication Tests
+    # Authentication Tests and Method Tests
     # - Superuser can get free ports
     # - User can get free ports
     # ====================================================================================================
@@ -373,11 +375,187 @@ class FreePortTestCase(ReverseSSHAPITestCase):
         self._test_post(self.free_port_url, data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
     def test_superuser_delete_freeport(self):
         self._test_delete(self.free_port_url + '10000/', self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+    def test_superuser_update_freeport(self):
+        data = {'reserved_port': 10003}
+        self._test_update(self.free_port_url + '10000/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
     # ====================================================================================================
     # 2. User
     def test_user_get_freeport(self):
         self._test_get(self.free_port_url, self.token_user1, HTTP_200_OK, None, self.free_port_count, None, None, None)
+    def test_user_post_freeport(self):
+        data = {'reserved_port': 10003}
+        self._test_post(self.free_port_url, data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+    def test_user_delete_freeport(self):
+        self._test_delete(self.free_port_url + '10000/', self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+    def test_user_update_freeport(self):
+        data = {'reserved_port': 10003}
+        self._test_update(self.free_port_url + '10000/', data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
     # ====================================================================================================
     # 3. Anonymous
     def test_anonymous_get_freeport(self):
         self._test_get(self.free_port_url, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, None, None)
+    def test_anonymous_post_freeport(self):
+        data = {'reserved_port': 10003}
+        self._test_post(self.free_port_url, data, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+    def test_anonymous_delete_freeport(self):
+        self._test_delete(self.free_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+    def test_anonymous_update_freeport(self):
+        data = {'reserved_port': 10003}
+        self._test_update(self.free_port_url + '10000/', data, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+# ====================================================================================================
+# CPU Spec Tests
+# - GET /api/v1/cpu-spec/
+# - POST /api/v1/cpu-spec/
+# ====================================================================================================
+class CPUSpecTestCase(ReverseSSHAPITestCase):
+    def setUp(self):
+        super().setUp()
+
+        # Setup Reserved Port
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
+        self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}, {'reserved_port': 10003}, {'reserved_port': 10004}]
+        for data in self.data_list:
+            self._client_post(self.reserved_port_url, data, self.token_superuser1)
+        self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
+
+        # Setup Used Port
+        data = {'used_port': 10000}
+        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 1)
+        data = {'used_port': 10001}
+        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 2)
+        data = {'used_port': 10002}
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 3)
+        data = {'used_port': 10003}
+        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None, UsedPort.objects.count, 4)
+
+        # Setup CPU Stat
+        self.data = {}
+        self.data['superuser'] = []
+        data = {
+            'used_port': 10000, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64', 
+            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz', 'cpu_hz_actural_friendly': 2903998000}
+        expected_data = data.copy()
+        expected_data['id'] = 1
+        self._test_post(self.cpu_spec_url, data, self.token_superuser1, HTTP_201_CREATED, expected_data, None, None, CPUSpec.objects.count, 1)
+        self.data['superuser'].append(expected_data)
+        self.data['user1'] = []
+        data = {
+            'used_port': 10002, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        expected_data = data.copy()
+        expected_data['id'] = 2
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, expected_data, None, None, CPUSpec.objects.count, 2)
+        self.data['user1'].append(expected_data)
+        self.data['superuser'].append(expected_data)
+
+        # Setup database count
+        self.reserved_port_count = ReservedPort.objects.count()
+        self.used_port_count = UsedPort.objects.count()
+        self.free_port_count = self.reserved_port_count - self.used_port_count
+        self.cpu_spec_count = CPUSpec.objects.count()
+
+    # ====================================================================================================
+    # Authentication Tests and Methods Tests
+    # - Superuser can get, post all cpu spec
+    # - User can get, post their own cpu spec
+    # - Anonymous can not get, post cpu spec
+    # - Any user can not update, delete cpu spec
+    # ====================================================================================================
+    # 1. Superuser
+    def test_superuser_get_cpuspec(self):
+        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'], len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_superuser_post_cpuspec(self):
+        data = {
+            'used_port': 10001, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        expected_data = data.copy()
+        expected_data['id'] = 3
+        self._test_post(self.cpu_spec_url, data, self.token_superuser1, HTTP_201_CREATED, expected_data, None, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'] + [expected_data], len(self.data['superuser']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+
+    def test_superuser_delete_own_cpuspec(self):
+        self._test_delete(self.cpu_spec_url + '1/', self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'], len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+    
+    def test_superuser_delete_other_cpuspec(self):
+        self._test_delete(self.cpu_spec_url + '1/', self.token_superuser2, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'], len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_superuser_update_own_cpuspec(self):
+        data = {
+            'used_port': 10000, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_update(self.cpu_spec_url + '1/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'], len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_superuser_update_other_cpuspec(self):
+        data = {
+            'used_port': 10002, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_update(self.cpu_spec_url + '1/', data, self.token_superuser2, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'], len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+    # ====================================================================================================
+    # 2. User
+    def test_user_get_cpuspec(self):
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+    
+    def test_user_post_cpuspec(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64', 
+            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz', 'cpu_hz_actural_friendly': 2903998000}
+        expected_data = data.copy()
+        expected_data['id'] = 3
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, expected_data, None, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data], len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+
+    def test_user_delete_own_cpuspec(self):
+        self._test_delete(self.cpu_spec_url + '2/', self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_delete_other_cpuspec(self):
+        self._test_delete(self.cpu_spec_url + '2/', self.token_user2, HTTP_403_FORBIDDEN, None, None, {'detail': 'permission_denied'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_update_own_cpuspec(self):
+        data = {
+            'used_port': 10002, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64', 
+            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz', 'cpu_hz_actural_friendly': 2903998000}
+        self._test_update(self.cpu_spec_url + '2/', data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_update_other_cpuspec(self):
+        data = {
+            'used_port': 10002, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64', 
+            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz', 'cpu_hz_actural_friendly': 2903998000}
+        self._test_update(self.cpu_spec_url + '2/', data, self.token_user2, HTTP_403_FORBIDDEN, None, None, {'detail': 'permission_denied'}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+    # ====================================================================================================
+    # 3. Anonymous
+    def test_anonymous_get_cpuspec(self):
+        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+    
+    def test_anonymous_post_cpuspec(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64', 
+            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz', 'cpu_hz_actural_friendly': 2903998000}
+        self._test_post(self.cpu_spec_url, data, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_anonymous_delete_cpuspec(self):
+        self._test_delete(self.cpu_spec_url + '2/', None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_anonymous_update_cpuspec(self):
+        data = {
+            'used_port': 10002, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64', 
+            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz', 'cpu_hz_actural_friendly': 2903998000}
+        self._test_update(self.cpu_spec_url + '2/', data, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
+    # ====================================================================================================
+    # Syntax Tests
+    # ====================================================================================================
+
+    # ====================================================================================================
+    # Boundary Tests
+    # ====================================================================================================
