@@ -68,6 +68,8 @@ class ReverseSSHAPITestCase(APITestCase):
             self.assertEqual(response.data, expected_data)
         if expected_data_len is not None:
             self.assertEqual(len(response.data), expected_data_len)
+        if expected_status_code is not None:
+            self.assertEqual(response.status_code, expected_status_code)
         if expected_error_code is not None:
             for key in expected_error_code:
                 self.assertIn(key, response.data)
@@ -100,9 +102,9 @@ class ReverseSSHAPITestCase(APITestCase):
         self._assert_response(response, expected_status_code, expected_data, expected_data_len, expected_error_code, count_function, expected_count)
 # ====================================================================================================
 # Reserved Port Tests
-# - GET /api/reserved_ports/
-# - POST /api/reserved_ports/
-# - DELETE /api/reserved_ports/<pk>/
+# - GET /api/reserved-ports/
+# - POST /api/reserved-ports/
+# - DELETE /api/reserved-ports/<pk>/
 # ====================================================================================================
 class ReservedPortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
@@ -217,10 +219,9 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
         self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None, {'reserved_port': ['max_value']}, ReservedPort.objects.count, self.reserved_port_count)
 # ====================================================================================================
 # Used Ports Tests
-# - GET /api/v1/used_ports/
-# - POST /api/v1/used_ports/
-# - DELETE /api/v1/used_ports/<int:used_port>/
-# - GET /api/v1/free_ports/
+# - GET /api/v1/used-ports/
+# - POST /api/v1/used-ports/
+# - DELETE /api/v1/used-ports/<pk>/
 # ====================================================================================================
 class UsedPortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
@@ -336,7 +337,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['required']}, UsedPort.objects.count, self.used_port_count)
 # ====================================================================================================
 # Free Ports Tests
-# - GET /api/v1/free_ports/
+# - GET /api/v1/free-ports/
 # ====================================================================================================
 class FreePortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
