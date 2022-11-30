@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.status import \
     HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, \
     HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN
-from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, AuthenticationFailed
+from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, AuthenticationFailed, ValidationError
 
 # ====================================================================================================
 # ReservedPortView
@@ -179,7 +179,11 @@ class CPUSpecView(ModelViewSet):
         if request_user is None:
             raise AuthenticationFailed()
 
-        used_port_user = UsedPort.objects.get(used_port=request.data['used_port']).user
+        used_port = UsedPort.objects.filter(used_port=request.data['used_port'])
+        if len(used_port) != 1:
+            raise ValidationError({'used_port': ['Used port does not exist']})
+
+        used_port_user = used_port[0].user
         if used_port_user is None or request_user != used_port_user:
             raise PermissionDenied()
 
