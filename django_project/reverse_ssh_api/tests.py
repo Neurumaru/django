@@ -554,8 +554,119 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count)
     # ====================================================================================================
     # Syntax Tests
+    # - User can't create a CPUSpec with a used_port that is already in use
+    # - User can't create a CPUSpec with a used_port that is not a valid port number
+    # - User can't create a CPUSpec with a cpu_bits that is not a integer
+    # - User can't create a CPUSpec with a cpu_count that is not a integer
+    # - User can't create a CPUSpec with a cpu_hz_actural_friendly that is not a integer
     # ====================================================================================================
+    def test_user_create_cpuspec_with_used_port_already_in_use(self):
+        data = {
+            'used_port': 10002, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['unique']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
 
+    def test_user_create_cpuspec_with_used_port_not_valid_0(self):
+        data = {
+            'used_port': 9999, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_used_port_not_valid_1(self):
+        data = {
+            'used_port': 65536, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'used_port': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_cpu_bits_float(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 32.5, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_bits': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_cpu_count_not_integer(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 'test', 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_count': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_cpu_hz_actural_friendly_not_integer(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 'test'}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_hz_actural_friendly': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
     # ====================================================================================================
     # Boundary Tests
+    # - cpu_bits must be 32 or 64
+    # - cpu_count must be between 1 and 129
+    # - cpu_hz_actural_friendly must be equal to or greater than 0
     # ====================================================================================================
+    def test_user_create_cpuspec_with_cpu_bits_not_32_or_64(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 128, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_bits': ['value_not_in_list']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_cpu_count_less_than_1(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 0, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_count': ['min_value']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_cpu_count_equal_to_1(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 1, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        expected_data = data.copy()
+        expected_data['id'] = 3
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data], len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+
+    def test_user_create_cpuspec_with_cpu_count_greater_than_1(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 2, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        expected_data = data.copy()
+        expected_data['id'] = 3
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data], len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+
+    def test_user_create_cpuspec_with_cpu_count_less_than_128(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 127, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        expected_data = data.copy()
+        expected_data['id'] = 3
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data], len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+
+    def test_user_create_cpuspec_with_cpu_count_equal_to_128(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 128, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        expected_data = data.copy()
+        expected_data['id'] = 3
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data], len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+
+    def test_user_create_cpuspec_with_cpu_count_greater_than_128(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 129, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': 1800000000}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_count': ['max_value']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
+
+    def test_user_create_cpuspec_with_cpu_hz_actural_friendly_less_than_0(self):
+        data = {
+            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actural_friendly': -1}
+        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None, {'cpu_hz_actural_friendly': ['min_value']}, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']), None, CPUSpec.objects.count, self.cpu_spec_count)
