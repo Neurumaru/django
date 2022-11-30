@@ -63,7 +63,7 @@ class UsedPort(models.Model):
 # - cpu_brand_raw: CPU brand (raw)
 #   - Type: TextField
 # - cpu_hz_actual_friendly: CPU frequency
-#   - Type: BigIntegerField
+#   - Type: BigIntegerField (0~)
 # ====================================================================================================
 class CPUSpec(models.Model):
     used_port = models.OneToOneField(
@@ -84,7 +84,11 @@ class CPUSpec(models.Model):
     cpu_arch_string_raw = models.TextField()
     cpu_vendor_id_raw = models.TextField()
     cpu_brand_raw = models.TextField()
-    cpu_hz_actural_friendly = models.BigIntegerField()
+    cpu_hz_actural_friendly = models.BigIntegerField(
+        validators=[
+            MinValueValidator(0)
+        ]
+    )
     
     class Meta:
         indexes = [
