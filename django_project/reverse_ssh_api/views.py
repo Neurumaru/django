@@ -1,14 +1,13 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import *
-from django_filters.rest_framework import DjangoFilterBackend
 from reverse_ssh_api.serializers import *
 from reverse_ssh_api.models import *
 from django.contrib.auth.models import User
 from rest_framework.response import Response
 from rest_framework.status import \
-    HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, \
-    HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN
+    HTTP_200_OK, HTTP_201_CREATED
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, AuthenticationFailed, ValidationError
+
 
 # ====================================================================================================
 # ReservedPortView
@@ -33,6 +32,7 @@ class ReservedPortView(ModelViewSet):
     def update(self, request, *args, **kwargs):
         raise MethodNotAllowed(request.method)
 
+
 # ====================================================================================================
 # UsedPortView
 # - GET /api/used-port/
@@ -42,7 +42,7 @@ class ReservedPortView(ModelViewSet):
 class UsedPortView(ModelViewSet):
     queryset = UsedPort.objects.all()
     serializer_class = UsedPortSerializer
-    
+
     # ====================================================================================================
     # Authentication
     # - Suepruser can access all used ports
@@ -76,7 +76,7 @@ class UsedPortView(ModelViewSet):
     def list(self, request):
         # Superuser can access all used ports
         if request.user.is_superuser:
-            queryset =  self.get_queryset()
+            queryset = self.get_queryset()
             serializer = UsedPortAdminSerializer(queryset, many=True)
             return Response(serializer.data, status=HTTP_200_OK)
 
@@ -119,7 +119,8 @@ class UsedPortView(ModelViewSet):
                 raise MethodNotAllowed(request.method)
             else:
                 raise PermissionDenied()
-    
+
+
 # ====================================================================================================
 # FreePortView
 # - GET /api/free-port/
@@ -153,6 +154,7 @@ class FreePortView(ModelViewSet):
     # ====================================================================================================
     def update(self, request, *args, **kwargs):
         raise MethodNotAllowed(request.method)
+
 
 # ====================================================================================================
 # CPUSpecView
@@ -202,7 +204,7 @@ class CPUSpecView(ModelViewSet):
 
         # Superuser can access all CPU specs
         if request_user.is_superuser:
-            queryset =  self.get_queryset()
+            queryset = self.get_queryset()
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data, status=HTTP_200_OK)
 
@@ -237,7 +239,6 @@ class CPUSpecView(ModelViewSet):
                 raise MethodNotAllowed(request.method)
             else:
                 raise PermissionDenied()
-
 
 # class CPUView(ModelViewSet):
 #     queryset = CPU.objects.all()

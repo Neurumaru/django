@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
 from reverse_ssh_api.validators import ValueInListValidator
 
+
 # ====================================================================================================
 # ReservedPort
 # - reserved_port: Reserved port for reverse SSH
@@ -13,10 +14,11 @@ class ReservedPort(models.Model):
     reserved_port = models.IntegerField(
         primary_key=True,
         validators=[
-            MinValueValidator(1024), 
+            MinValueValidator(1024),
             MaxValueValidator(65535)
         ]
     )
+
 
 # ====================================================================================================
 # UsedPort
@@ -31,7 +33,7 @@ class ReservedPort(models.Model):
 # ====================================================================================================
 class UsedPort(models.Model):
     used_port = models.OneToOneField(
-        ReservedPort, 
+        ReservedPort,
         primary_key=True,
         on_delete=models.CASCADE)
     user = models.ForeignKey(
@@ -43,6 +45,7 @@ class UsedPort(models.Model):
         indexes = [
             models.Index(fields=['user']),
         ]
+
 
 # ====================================================================================================
 # CPUSpec
@@ -89,11 +92,12 @@ class CPUSpec(models.Model):
             MinValueValidator(0)
         ]
     )
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['used_port']),
         ]
+
 
 # ====================================================================================================
 # CPUStat
@@ -148,14 +152,15 @@ class CPUStat(models.Model):
 # ====================================================================================================
 class MemorySpec(models.Model):
     used_port = models.OneToOneField(
-        UsedPort, 
+        UsedPort,
         on_delete=models.CASCADE)
     memory_total = models.BigIntegerField()
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['used_port']),
         ]
+
 
 # ====================================================================================================
 # MemoryStat
@@ -180,7 +185,7 @@ class MemorySpec(models.Model):
 # ====================================================================================================
 class MemoryStat(models.Model):
     memory_spec = models.OneToOneField(
-        MemorySpec, 
+        MemorySpec,
         on_delete=models.CASCADE)
 
     memory_available = models.BigIntegerField()
@@ -191,13 +196,14 @@ class MemoryStat(models.Model):
     swap_free = models.BigIntegerField()
 
     memory_update_time = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['memory_spec']),
             models.Index(fields=['memory_update_time']),
         ]
-    
+
+
 # ====================================================================================================
 # GPUSpec
 # - used_port: Used port for reverse SSH
@@ -264,6 +270,7 @@ class GPUSpec(models.Model):
             models.Index(fields=['used_port']),
         ]
 
+
 # ====================================================================================================
 # GPUStat
 # - gpu_spec: GPU specification
@@ -310,9 +317,9 @@ class GPUSpec(models.Model):
 # ====================================================================================================
 class GPUStat(models.Model):
     gpu_spec = models.OneToOneField(
-        GPUSpec, 
+        GPUSpec,
         on_delete=models.CASCADE)
-    
+
     gpu_power_usage = models.IntegerField()
     gpu_temperature = models.IntegerField()
     gpu_fan_speed = models.IntegerField()
@@ -336,7 +343,7 @@ class GPUStat(models.Model):
     gpu_utilization_decoder = models.IntegerField()
 
     gpu_update_time = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['gpu_spec']),

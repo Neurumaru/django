@@ -14,3 +14,7 @@ SECRET_KEY
 
 # Test file
 test.py
+
+# PyCharm
+.idea/
+venv/

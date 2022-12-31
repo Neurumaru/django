@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from reverse_ssh_api.models import *
 
+
 # ====================================================================================================
 # ReservedPortSerializer
 # ====================================================================================================
@@ -9,6 +10,7 @@ class ReservedPortSerializer(serializers.ModelSerializer):
         model = ReservedPort
         fields = ['reserved_port']
 
+
 # ====================================================================================================
 # UsedPortSerializer (for user)
 # ====================================================================================================
@@ -16,6 +18,7 @@ class UsedPortSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsedPort
         fields = ['used_port']
+
 
 # ====================================================================================================
 # UsedPortSerializer (for superuser)
@@ -34,14 +37,15 @@ class UsedPortAdminSerializer(serializers.ModelSerializer):
             'user': {'read_only': True}
         }
 
+
 # ====================================================================================================
 # CPUSpecSerializer
 # ====================================================================================================
 class CPUSpecSerializer(serializers.ModelSerializer):
     class Meta:
         model = CPUSpec
-        fields = ['id', 'used_port', 'cpu_arch', 'cpu_bits', 'cpu_count', 'cpu_arch_string_raw', 'cpu_vendor_id_raw', 'cpu_brand_raw', 'cpu_hz_actural_friendly']
-
+        fields = ['id', 'used_port', 'cpu_arch', 'cpu_bits', 'cpu_count', 'cpu_arch_string_raw', 'cpu_vendor_id_raw',
+                  'cpu_brand_raw', 'cpu_hz_actural_friendly']
 
 # class CPUSerializer(serializers.ModelSerializer):
 #     class Meta:
