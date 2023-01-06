@@ -6,7 +6,8 @@ from django.contrib.auth.models import User
 from rest_framework.response import Response
 from rest_framework.status import \
     HTTP_200_OK, HTTP_201_CREATED
-from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, AuthenticationFailed, ValidationError
+from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, AuthenticationFailed, \
+    ValidationError, ErrorDetail
 
 
 # ====================================================================================================
@@ -45,7 +46,7 @@ class UsedPortView(ModelViewSet):
 
     # ====================================================================================================
     # Authentication
-    # - Suepruser can access all used ports
+    # - Superuser can access all used ports
     # - User can only access their own used ports
     # ====================================================================================================
 
@@ -58,6 +59,11 @@ class UsedPortView(ModelViewSet):
         user = User.objects.get(username=request.user)
         if user is None:
             raise AuthenticationFailed()
+
+        if 'used_port' in request.data and type(request.data['used_port']) is not int:
+            raise ValidationError({'used_port': [
+                f'Ensure the type of this value is int (The type of this value is {type(request.data["used_port"])})'
+            ]})
 
         # Validate request data
         serializer = self.get_serializer(data=request.data)
@@ -181,6 +187,16 @@ class CPUSpecView(ModelViewSet):
         if request_user is None:
             raise AuthenticationFailed()
 
+        if 'used_port' not in request.data:
+            raise ValidationError({'used_port': [
+                ErrorDetail(f'Ensure this value exists in request data', 'required')
+            ]})
+
+        if type(request.data['used_port']) is not int:
+            raise ValidationError({'used_port': [
+                f'Ensure the type of this value is int (The type of this value is {type(request.data["used_port"])})'
+            ]})
+
         used_port = UsedPort.objects.filter(used_port=request.data['used_port'])
         if len(used_port) != 1:
             raise ValidationError({'used_port': ['Used port does not exist']})
@@ -239,24 +255,3 @@ class CPUSpecView(ModelViewSet):
                 raise MethodNotAllowed(request.method)
             else:
                 raise PermissionDenied()
-
-# class CPUView(ModelViewSet):
-#     queryset = CPU.objects.all()
-#     serializer_class = CPUSerializer
-
-#     filter_backends = [DjangoFilterBackend]
-#     filterset_fields = ['used_port']
-
-# class RAMView(ModelViewSet):
-#     queryset = RAM.objects.all()
-#     serializer_class = RAMSerializer
-
-#     filter_backends = [DjangoFilterBackend]
-#     filterset_fields = ['used_port']
-
-# class GPUView(ModelViewSet):
-#     queryset = GPU.objects.all()
-#     serializer_class = GPUSerializer
-
-#     filter_backends = [DjangoFilterBackend]
-#     filterset_fields = ['used_port', 'gpu_index']

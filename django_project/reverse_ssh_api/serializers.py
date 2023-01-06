@@ -45,7 +45,7 @@ class CPUSpecSerializer(serializers.ModelSerializer):
     class Meta:
         model = CPUSpec
         fields = ['id', 'used_port', 'cpu_arch', 'cpu_bits', 'cpu_count', 'cpu_arch_string_raw', 'cpu_vendor_id_raw',
-                  'cpu_brand_raw', 'cpu_hz_actural_friendly']
+                  'cpu_brand_raw', 'cpu_hz_actual_friendly']
 
 # class CPUSerializer(serializers.ModelSerializer):
 #     class Meta:

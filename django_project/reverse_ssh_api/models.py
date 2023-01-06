@@ -35,7 +35,8 @@ class UsedPort(models.Model):
     used_port = models.OneToOneField(
         ReservedPort,
         primary_key=True,
-        on_delete=models.CASCADE)
+        on_delete=models.CASCADE
+    )
     user = models.ForeignKey(
         User,
         related_name='used_port',
@@ -87,7 +88,7 @@ class CPUSpec(models.Model):
     cpu_arch_string_raw = models.TextField()
     cpu_vendor_id_raw = models.TextField()
     cpu_brand_raw = models.TextField()
-    cpu_hz_actural_friendly = models.BigIntegerField(
+    cpu_hz_actual_friendly = models.BigIntegerField(
         validators=[
             MinValueValidator(0)
         ]
@@ -188,8 +189,8 @@ class MemoryStat(models.Model):
         MemorySpec,
         on_delete=models.CASCADE)
 
-    memory_available = models.BigIntegerField()
     memory_used = models.BigIntegerField()
+    memory_available = models.BigIntegerField()
     memory_free = models.BigIntegerField()
     swap_total = models.BigIntegerField()
     swap_used = models.BigIntegerField()
@@ -236,12 +237,24 @@ class MemoryStat(models.Model):
 #   - Type: BooleanField
 # - gpu_power_management_limit: GPU power management limit
 #   - Type: Integer
-# - gpu_enforced_power_limit: GPU enforced power limit
-#   - Type: Integer
 # - gpu_temperature_shutdown: GPU temperature shutdown
 #   - Type: Integer
 # - gpu_temperature_slowdown: GPU temperature slowdown
 #   - Type: Integer
+# - gpu_enforced_power_limit: GPU enforced power limit
+#   - Type: Integer
+# - gpu_max_clock_info_graphic: GPU max clock info graphics
+#   - Type: Integer
+# - gpu_max_clock_info_sm: GPU max clock info SM
+#   - Type: Integer
+# - gpu_max_clock_info_memory: GPU max clock info memory
+#   - Type: Integer
+# - gpu_max_clock_info_video: GPU max clock info video
+#   - Type: Integer
+# - gpu_memory_info_total: GPU memory info total
+#   - Type: BigIntegerField
+# - gpu_bar1_memory_info_total: GPU BAR1 memory info total
+#   - Type: BigIntegerField
 # ====================================================================================================
 class GPUSpec(models.Model):
     used_port = models.ForeignKey(
@@ -260,9 +273,17 @@ class GPUSpec(models.Model):
     gpu_compute_mode = models.TextField()
     gpu_power_management_mode = models.BooleanField()
     gpu_power_management_limit = models.IntegerField()
-    gpu_enforced_power_limit = models.IntegerField()
     gpu_temperature_shutdown = models.IntegerField()
     gpu_temperature_slowdown = models.IntegerField()
+
+    gpu_enforced_power_limit = models.IntegerField()
+    gpu_max_clock_info_graphics = models.IntegerField()
+    gpu_max_clock_info_sm = models.IntegerField()
+    gpu_max_clock_info_mem = models.IntegerField()
+    gpu_max_clock_info_video = models.IntegerField()
+
+    gpu_memory_info_total = models.BigIntegerField()
+    gpu_bar1_memory_info_total = models.BigIntegerField()
 
     class Meta:
         unique_together = ('used_port', 'gpu_index')
@@ -291,13 +312,9 @@ class GPUSpec(models.Model):
 #   - Type: BigIntegerField
 # - gpu_clock_info_video: GPU clock info video
 #   - Type: BigIntegerField
-# - gpu_memory_info_total: GPU memory info total
-#   - Type: BigIntegerField
 # - gpu_memory_info_free: GPU memory info free
 #   - Type: BigIntegerField
 # - gpu_memory_info_used: GPU memory info used
-#   - Type: BigIntegerField
-# - gpu_bar1_memory_info_total: GPU BAR1 memory info total
 #   - Type: BigIntegerField
 # - gpu_bar1_memory_info_free: GPU BAR1 memory info free
 #   - Type: BigIntegerField
@@ -329,11 +346,9 @@ class GPUStat(models.Model):
     gpu_clock_info_mem = models.BigIntegerField()
     gpu_clock_info_video = models.BigIntegerField()
 
-    gpu_memory_info_total = models.BigIntegerField()
     gpu_memory_info_free = models.BigIntegerField()
     gpu_memory_info_used = models.BigIntegerField()
 
-    gpu_bar1_memory_info_total = models.BigIntegerField()
     gpu_bar1_memory_info_free = models.BigIntegerField()
     gpu_bar1_memory_info_used = models.BigIntegerField()
 
