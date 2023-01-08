@@ -1,5 +1,6 @@
-from typing import Type, List, TypeVar
+from typing import Type, List, TypeVar, Tuple, Callable
 
+from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.status import *
@@ -7,17 +8,19 @@ from rest_framework.test import APITestCase
 from reverse_ssh_api.models import *
 from django.db.models import Model
 
+from reverse_ssh_api.serializers import UsedPortAdminSerializer, UsedPortSerializer
 
 T = TypeVar('T', bound=Type[Model])
+
 
 # ==============================================================================
 # Custom Test Case
 # ==============================================================================
 class ReverseSSHAPITestCase(APITestCase):
     # ==============================================================================
-    # Default setUp
+    # setUp
     def setUp(self):
-        # Create user and superuser
+        # Setup Users
         self.superuser1 = User.objects.create_superuser(username='superuser1', password='superuser')
         self.superuser2 = User.objects.create_superuser(username='superuser2', password='superuser')
         self.token_superuser1, _ = Token.objects.get_or_create(user=self.superuser1)
@@ -26,103 +29,492 @@ class ReverseSSHAPITestCase(APITestCase):
         self.user2 = User.objects.create_user(username='user2', password='user')
         self.token_user1, _ = Token.objects.get_or_create(user=self.user1)
         self.token_user2, _ = Token.objects.get_or_create(user=self.user2)
+        self.token = {
+            'superuser1': self.token_superuser1,
+            'superuser2': self.token_superuser2,
+            'user1': self.token_user1,
+            'user2': self.token_user2
+        }
 
-        # urls
+        # Setup Reserved Port
+        data_list = [
+            {'reserved_port': i}
+            for i in [10000, 10001, 10002, 10003, 10004]
+        ]
+        self.reserved_port_objects = self.__create_objects_in_model(ReservedPort, data_list)
+
+        # Setup Used Port
+        data_list = [
+            {'used_port': self.reserved_port_objects[i], 'user': self.superuser1}
+            for i in [0, 1]
+        ] + [
+            {'used_port': self.reserved_port_objects[i], 'user': self.user1}
+            for i in [2, 3]
+        ]
+        self.used_port_objects = self.__create_objects_in_model(UsedPort, data_list)
+
+        # Setup CPU Spec
+        data_list = [
+            {
+                'used_port': self.used_port_objects[0],
+                'cpu_arch': 'X86_64',
+                'cpu_bits': 64,
+                'cpu_count': 16,
+                'cpu_arch_string_raw': 'x86_64',
+                'cpu_vendor_id_raw': 'GenuineIntel',
+                'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
+                'cpu_hz_actual_friendly': 2903998000
+            }, {
+                'used_port': self.used_port_objects[2],
+                'cpu_arch': 'ARM_8',
+                'cpu_bits': 64,
+                'cpu_count': 4,
+                'cpu_arch_string_raw': 'aarch64',
+                'cpu_vendor_id_raw': 'ARM',
+                'cpu_brand_raw': 'Cortex-A72',
+                'cpu_hz_actual_friendly': 1800000000
+            },
+        ]
+        self.cpu_spec_objects = self.__create_objects_in_model(CPUSpec, data_list)
+
+        # Setup CPU Stat
+        data_list = [
+            {'cpu_spec': self.cpu_spec_objects[i], 'cpu_core': j, 'cpu_percent': 0.0}
+            for i in [0, 1] for j in range(self.cpu_spec_objects[i].cpu_count)
+        ]
+        self.cpu_stat_objects = self.__create_objects_in_model(CPUStat, data_list)
+
+        # Setup Memory Spec
+        data_list = [
+            {
+                'used_port': self.used_port_objects[0],
+                'memory_total': 34282405888
+            }, {
+                'used_port': self.used_port_objects[2],
+                'memory_total': 818716720
+            }
+        ]
+        self.memory_spec_objects = self.__create_objects_in_model(MemorySpec, data_list)
+
+        # Setup Memory Stat
+        data_list = [
+            {
+                'memory_spec': self.memory_spec_objects[0],
+                'memory_used': 9745108992,
+                'memory_available': 24539418624,
+                'memory_free': 24541990912,
+                'swap_total': 5100273664,
+                'swap_used': 2776940544,
+                'swap_free': 2325467136
+            }, {
+
+                'memory_spec': self.memory_spec_objects[1],
+                'memory_used': 1238990848,
+                'memory_available': 6621032448,
+                'memory_free': 5447192576,
+                'swap_total': 0,
+                'swap_used': 0,
+                'swap_free': 0
+            }
+        ]
+        self.memory_stat_objects = self.__create_objects_in_model(MemoryStat, data_list)
+
+        # Setup GPU Spec
+        data_list = [
+            {
+                'used_port': self.used_port_objects[0],
+                'gpu_index': 0,
+                'gpu_name': b'NVIDIA GeForce RTX 3080',
+                'gpu_brand': b'Geforce',
+                'gpu_nvml_version': b'11.515.766.02',
+                'gpu_driver_version': b'517.48',
+                'gpu_vbios_version': b'94.02.26.08.34',
+                'gpu_multi_gpu_board': False,
+                'gpu_display_mode': True,
+                'gpu_display_active': True,
+                'gpu_persistence_mode': True,
+                'gpu_compute_mode': b'DEFAULT',
+                'gpu_power_management_mode': True,
+                'gpu_power_management_limit': 340000,
+                'gpu_temperature_shutdown': 98,
+                'gpu_temperature_slowdown': 95,
+                'gpu_enforced_power_limit': 340000,
+                'gpu_max_clock_info_graphics': 2100,
+                'gpu_max_clock_info_sm': 2100,
+                'gpu_max_clock_info_mem': 9501,
+                'gpu_max_clock_info_video': 1950,
+                'gpu_memory_info_total': 10737418240,
+                'gpu_bar1_memory_info_total': 268435456
+            }
+        ]
+        self.gpu_spec_objects = self.__create_objects_in_model(GPUSpec, data_list)
+
+        # Setup GPU Stat
+        data_list = [
+            {
+                'gpu_spec': self.gpu_spec_objects[0],
+                'gpu_power_usage': 25696,
+                'gpu_temperature': 31,
+                'gpu_fan_speed': 0,
+                'gpu_clock_info_graphics': 145,
+                'gpu_clock_info_sm': 145,
+                'gpu_clock_info_mem': 254,
+                'gpu_clock_info_video': 555,
+                'gpu_memory_info_free': 9507532800,
+                'gpu_memory_info_used': 1229885440,
+                'gpu_bar1_memory_info_free': 267386880,
+                'gpu_bar1_memory_info_used': 1048576,
+                'gpu_utilization_gpu': 5,
+                'gpu_utilization_memory': 15,
+                'gpu_utilization_encoder': 0,
+                'gpu_utilization_decoder': 0,
+            }
+        ]
+        self.gpu_stat_objects = self.__create_objects_in_model(GPUStat, data_list)
+
+        # Setup database count
+        self.reserved_port_count = ReservedPort.objects.count()
+        self.used_port_count = UsedPort.objects.count()
+        self.free_port_count = self.reserved_port_count - self.used_port_count
+        self.cpu_spec_count = CPUSpec.objects.count()
+        self.cpu_stat_count = CPUStat.objects.count()
+        self.memory_spec_count = MemorySpec.objects.count()
+        self.memory_stat_count = MemoryStat.objects.count()
+        self.gpu_spec_objects = GPUSpec.objects.count()
+        self.gpu_stat_objects = GPUStat.objects.count()
+
+        # Setup urls
         self.reserved_port_url = '/api/reserved-port/'
         self.used_port_url = '/api/used-port/'
         self.free_port_url = '/api/free-port/'
         self.cpu_spec_url = '/api/cpu-spec/'
+        self.cpu_stat_url = '/api/cpu-stat/'
+        self.memory_spec_url = '/api/memory-spec/'
+        self.memory_stat_url = '/api/memory-stat/'
+        self.gpu_spec_url = '/api/gpu-spec/'
+        self.gpu_stat_url = '/api/gpu-stat/'
 
-        # format    
+        # Setup format
         self.format = 'json'
+
+        # Setup Data
+        self.url = ''
+        self.data = {
+            'superuser1': [],
+            'superuser2': [],
+            'user1': [],
+            'user2': []
+        }
+        self.model = Model
+        self.count = 0
+
+    # ==============================================================================
+    # Methods
+    @staticmethod
+    def __create_objects_in_model(
+            model: T,
+            data_list: List[dict]
+    ) -> List[T]:
+        return list(map(lambda x: model.objects.create(**x), data_list))
+
+    def _create_expected_data(
+            self,
+            data: dict,
+            model: Type[Model] = None
+    ) -> dict:
+        if model is None:
+            model = self.model
+        expected_data = data.copy()
+        if model._meta.pk.name == 'id':
+            expected_data['id'] = model.objects.count() + 1
+        return expected_data
 
     # ==============================================================================
     # Client
-    def _client_get(self, url: str, token: Token = None, format: str = 'json') -> Response:
-        if token is not None:
-            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
-        else:
-            self.client.credentials(HTTP_AUTHORIZATION='')
-        response = self.client.get(url, format=format)
+    def _client_get(
+            self,
+            url: str = None,
+            token: str = None,
+            format: str = 'json'
+    ) -> Response:
+        self.client.credentials(HTTP_AUTHORIZATION=token)
+        response = self.client.get(
+            path=url,
+            format=format)
         return response
 
-    def _client_post(self, url: str, request_data, token: Token = None, format: str = 'json') -> Response:
-        if token is not None:
-            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
-        else:
-            self.client.credentials(HTTP_AUTHORIZATION='')
-        response = self.client.post(url, request_data, format=format)
+    def _client_post(
+            self,
+            url: str = None,
+            request_data: dict = None,
+            token: str = None,
+            format: str = 'json'
+    ) -> Response:
+        self.client.credentials(HTTP_AUTHORIZATION=token)
+        response = self.client.post(
+            path=url,
+            data=request_data,
+            format=format)
         return response
 
-    def _client_delete(self, url: str, token: Token = None, format: str = 'json') -> Response:
-        if token is not None:
-            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
-        else:
-            self.client.credentials(HTTP_AUTHORIZATION='')
-        response = self.client.delete(url, format=format)
+    def _client_delete(
+            self,
+            url: str = None,
+            token: str = None,
+            format: str = 'json'
+    ) -> Response:
+        self.client.credentials(HTTP_AUTHORIZATION=token)
+        response = self.client.delete(
+            path=url,
+            format=format)
         return response
 
-    def _client_put(self, url: str, request_data, token: Token = None, format: str = 'json') -> Response:
-        if token is not None:
-            self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
-        else:
-            self.client.credentials(HTTP_AUTHORIZATION='')
-        response = self.client.put(url, request_data, format=format)
+    def _client_put(
+            self,
+            url: str = None,
+            request_data: dict = None,
+            token: str = None,
+            format: str = 'json'
+    ) -> Response:
+        self.client.credentials(HTTP_AUTHORIZATION=token)
+        response = self.client.put(
+            path=url,
+            data=request_data,
+            format=format)
         return response
 
     # ==============================================================================
     # Assert response
-    def _assert_response(self, response, expected_status_code, expected_data=None, expected_data_len: int = None,
-                         expected_error_code: dict = None, count_function=None, expected_count: int = None) -> None:
+    def _assert_response(
+            self,
+            response: Response = None,
+            expected_status_code: int = HTTP_200_OK,
+            expected_data: dict = None,
+            expected_error_code: dict = None,
+            count_function: Callable = None,
+            expected_count: int = None
+    ) -> None:
         if expected_data is not None:
             self.assertEqual(response.data, expected_data)
-        if expected_data_len is not None:
-            self.assertEqual(len(response.data), expected_data_len)
+
         if expected_status_code is not None:
             self.assertEqual(response.status_code, expected_status_code)
+
         if expected_error_code is not None:
             for key in expected_error_code:
                 self.assertIn(key, response.data)
+
                 if type(expected_error_code[key]) is list:
                     self.assertEqual(type(response.data[key]), list)
+
                     response_error_code = set([data.code for data in response.data[key]])
                     expected_error_code_set = set(expected_error_code[key])
                     self.assertSetEqual(response_error_code, expected_error_code_set)
+
                 elif type(expected_error_code[key]) is str:
                     self.assertEqual(type(response.data[key].code), str)
                     self.assertEqual(response.data[key].code, expected_error_code[key])
+
         if count_function is not None and expected_count is not None:
             self.assertEqual(count_function(), expected_count)
 
     # ==============================================================================
     # Test
-    def _test_get(self, url: str, token: Token = None, expected_status_code: int = HTTP_200_OK, expected_data=None,
-                  expected_data_len: int = None, expected_error_code: dict = None, count_function=None,
-                  expected_count: int = None):
-        response = self._client_get(url, token)
-        self._assert_response(response, expected_status_code, expected_data, expected_data_len, expected_error_code,
-                              count_function, expected_count)
+    def __validate_parameter(
+            self,
+            url: str = None,
+            request_id: int = None,
+            token: str = None,
+            request_data: dict = None,
+            expected_status_code: int = None,
+            expected_data: str = None,
+            count_function: Callable = None,
+            expected_count: int = None
+    ) -> Tuple[str, str, dict, Callable, int]:
+        if url is None:
+            url = self.url
 
-    def _test_post(self, url: str, request_data, token: Token = None, expected_status_code: int = HTTP_201_CREATED,
-                   expected_data=None, expected_data_len: int = None, expected_error_code: dict = None,
-                   count_function=None, expected_count: int = None):
-        response = self._client_post(url, request_data, token)
-        self._assert_response(response, expected_status_code, expected_data, expected_data_len, expected_error_code,
-                              count_function, expected_count)
+        if request_id is not None:
+            url = f'{url}{request_id}/'
 
-    def _test_delete(self, url: str, token: Token = None, expected_status_code: int = HTTP_204_NO_CONTENT,
-                     expected_data=None, expected_data_len: int = None, expected_error_code: dict = None,
-                     count_function=None, expected_count: int = None):
-        response = self._client_delete(url, token)
-        self._assert_response(response, expected_status_code, expected_data, expected_data_len, expected_error_code,
-                              count_function, expected_count)
+        tmp_token = token
+        if token is not None:
+            token = 'Token ' + self.token[token].key
+        else:
+            token = ''
 
-    def _test_update(self, url: str, request_data, token: Token = None, expected_status_code: int = HTTP_200_OK,
-                     expected_data=None, expected_data_len: int = None, expected_error_code: dict = None,
-                     count_function=None, expected_count: int = None):
-        response = self._client_put(url, request_data, token)
-        self._assert_response(response, expected_status_code, expected_data, expected_data_len, expected_error_code,
-                              count_function, expected_count)
+        if expected_status_code == HTTP_200_OK:
+            expected_data = self.data[tmp_token]
+        elif expected_status_code == HTTP_201_CREATED\
+                or expected_status_code == HTTP_202_ACCEPTED:
+            expected_data = self._create_expected_data(request_data, self.model)
+
+        if count_function is None:
+            count_function = self.model.objects.count
+
+        if expected_count is None:
+            expected_count = self.count
+            if expected_status_code == HTTP_201_CREATED:
+                expected_count += 1
+            elif expected_status_code == HTTP_204_NO_CONTENT:
+                expected_count -= 1
+
+        return url, token, expected_data, count_function, expected_count
+
+    def _test_get(
+            self,
+            url: str = None,
+            token: str = None,
+            expected_status_code: int = HTTP_200_OK,
+            expected_data: str = None,
+            expected_data_len: None = None,
+            expected_error_code: dict = None,
+            count_function: None = None,
+            expected_count: None = None
+    ) -> None:
+        (
+            url,
+            token,
+            expected_data,
+            count_function,
+            expected_count
+        ) = self.__validate_parameter(
+            url=url,
+            token=token,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data
+        )
+        response = self._client_get(
+            url=url,
+            token=token
+        )
+        self._assert_response(
+            response=response,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data,
+            expected_error_code=expected_error_code,
+            count_function=count_function,
+            expected_count=expected_count
+        )
+
+    def _test_post(
+            self,
+            url: str = None,
+            request_data: dict = None,
+            token: str = None,
+            expected_status_code: int = HTTP_201_CREATED,
+            expected_data: str = None,
+            expected_data_len: None = None,
+            expected_error_code: dict = None,
+            count_function: None = None,
+            expected_count: None = None
+    ) -> None:
+        (
+            url,
+            token,
+            expected_data,
+            count_function,
+            expected_count
+        ) = self.__validate_parameter(
+            url=url,
+            token=token,
+            request_data=request_data,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data
+        )
+        response = self._client_post(
+            url=url,
+            request_data=request_data,
+            token=token
+        )
+        self._assert_response(
+            response=response,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data,
+            expected_error_code=expected_error_code,
+            count_function=count_function,
+            expected_count=expected_count
+        )
+
+    def _test_delete(
+            self, url: str = None,
+            token: str = None,
+            expected_status_code: int = HTTP_204_NO_CONTENT,
+            expected_data: str = None,
+            expected_data_len: None = None,
+            expected_error_code: dict = None,
+            count_function: None = None,
+            expected_count: None = None,
+            request_id: int = None
+    ) -> None:
+        (
+            url,
+            token,
+            expected_data,
+            count_function,
+            expected_count
+        ) = self.__validate_parameter(
+            url=url,
+            request_id=request_id,
+            token=token,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data
+        )
+        response = self._client_delete(
+            url=url,
+            token=token
+        )
+        self._assert_response(
+            response=response,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data,
+            expected_error_code=expected_error_code,
+            count_function=count_function,
+            expected_count=expected_count
+        )
+
+    def _test_update(
+            self,
+            url: str = None,
+            request_data: dict = None,
+            token: str = None,
+            expected_status_code: int = HTTP_200_OK,
+            expected_data: str = None,
+            expected_data_len: None = None,
+            expected_error_code: dict = None,
+            count_function=None,
+            expected_count: None = None,
+            request_id: int = None
+    ) -> None:
+        (
+            url,
+            token,
+            expected_data,
+            count_function,
+            expected_count
+        ) = self.__validate_parameter(
+            url=url,
+            request_id=request_id,
+            token=token,
+            request_data=request_data,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data
+        )
+        response = self._client_put(
+            url=url,
+            request_data=request_data,
+            token=token
+        )
+        self._assert_response(
+            response=response,
+            expected_status_code=expected_status_code,
+            expected_data=expected_data,
+            expected_error_code=expected_error_code,
+            count_function=count_function,
+            expected_count=expected_count
+        )
+
+    # ==============================================================================
 
 
 # ====================================================================================================
@@ -135,8 +527,11 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
         super().setUp()
 
-        # Reserved port count
-        self.reserved_port_count = ReservedPort.objects.count()
+        self.url = self.reserved_port_url
+        for i in [0, 1, 2, 3, 4]:
+            self.data['superuser1'].append(model_to_dict(self.reserved_port_objects[i]))
+        self.model = ReservedPort
+        self.count = self.reserved_port_count
 
     # ====================================================================================================
     # Authentication Tests and Method Tests
@@ -144,74 +539,93 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     # ====================================================================================================
     # Superuser
     def test_superuser_get_ReservedPort(self):
-        self._test_get(self.reserved_port_url, self.token_superuser1, HTTP_200_OK, [], 0, None,
-                       ReservedPort.objects.count, 0)
+        self._test_get(
+            token='superuser1',
+            expected_status_code=HTTP_200_OK
+        )
 
     def test_superuser_post_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        self._test_get(self.reserved_port_url, self.token_superuser1, HTTP_200_OK, [data], 1, None,
-                       ReservedPort.objects.count, self.reserved_port_count + 1)
+        data = {'reserved_port': 10005}
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_delete_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        self._test_delete(self.reserved_port_url + '10000/', self.token_superuser1, HTTP_204_NO_CONTENT, None, None,
-                          None, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_delete(
+            request_id=10000,
+            token='superuser1',
+            expected_status_code=HTTP_204_NO_CONTENT,
+        )
 
     def test_superuser_fail_to_update_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        data = {'reserved_port': 10001}
-        self._test_update(self.reserved_port_url + '10000/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED,
-                          None, None, None, ReservedPort.objects.count, self.reserved_port_count + 1)
+        data = {'reserved_port': 10005}
+        self._test_update(
+            request_id=10000,
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     # ====================================================================================================
     # User
     def test_user_fail_to_get_ReservedPort(self):
-        self._test_get(self.reserved_port_url, self.token_user1, HTTP_403_FORBIDDEN, None, None,
-                       {'detail': 'permission_denied'}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_get(
+            token='user1',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     def test_user_fail_to_post_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_user1, HTTP_403_FORBIDDEN, None, None,
-                        {'detail': 'permission_denied'}, ReservedPort.objects.count, self.reserved_port_count)
+        data = {'reserved_port': 10005}
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     def test_user_fail_to_delete_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        self._test_delete(self.reserved_port_url + '10000/', self.token_user1, HTTP_403_FORBIDDEN, None, None,
-                          {'detail': 'permission_denied'}, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_delete(
+            request_id=10000,
+            token='user1',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     def test_user_fail_to_update_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        data = {'reserved_port': 10001}
-        self._test_update(self.reserved_port_url + '10000/', data, self.token_user1, HTTP_403_FORBIDDEN, None, None,
-                          {'detail': 'permission_denied'}, ReservedPort.objects.count, self.reserved_port_count + 1)
+        data = {'reserved_port': 10005}
+        self._test_update(
+            request_id=10000,
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     # ====================================================================================================
     # Anonymous
     def test_anonymous_fail_to_get_ReservedPort(self):
-        self._test_get(self.reserved_port_url, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'},
-                       ReservedPort.objects.count, self.reserved_port_count)
+        self._test_get(
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_post_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, None, HTTP_401_UNAUTHORIZED, None, None,
-                        {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+        data = {'reserved_port': 10005}
+        self._test_post(
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_delete_ReservedPort(self):
-        data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        self._test_delete(self.reserved_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None,
-                          {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_delete(
+            request_id=10000,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     # ====================================================================================================
     # Syntax Tests
@@ -223,25 +637,39 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     # reserved_port
     def test_superuser_fail_to_post_ReservedPort_with_reserved_port_already_used(self):
         data = {'reserved_port': 10000}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None,
-                        {'reserved_port': ['unique']}, ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'reserved_port': ['unique']}
+        )
 
     def test_superuser_fail_to_post_ReservedPort_with_reserved_port_string(self):
         data = {'reserved_port': 'test'}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None,
-                        {'reserved_port': ['invalid']}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'reserved_port': ['invalid']}
+        )
 
     def test_superuser_fail_to_post_ReservedPort_with_reserved_port_float(self):
         data = {'reserved_port': 1024.5}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None,
-                        {'reserved_port': ['invalid']}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'reserved_port': ['invalid']}
+        )
 
     def test_superuser_fail_to_post_ReservedPort_with_reserved_port_none(self):
         data = {}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None,
-                        {'reserved_port': ['required']}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'reserved_port': ['required']}
+        )
 
     # ====================================================================================================
     # Boundary Tests
@@ -250,33 +678,53 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     # reserved_port
     def test_superuser_fail_to_post_ReservedPort_with_reserved_port_lower_than_min_value(self):
         data = {'reserved_port': 1023}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None,
-                        {'reserved_port': ['min_value']}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'reserved_port': ['min_value']}
+        )
 
     def test_superuser_post_ReservedPort_with_reserved_port_equal_to_min_value(self):
         data = {'reserved_port': 1024}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_post_ReservedPort_with_reserved_port_greater_than_min_value(self):
         data = {'reserved_port': 1025}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_post_rReservedPort_with_reserved_port_lower_than_max_value(self):
         data = {'reserved_port': 65534}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_post_ReservedPort_with_reserved_port_equal_to_max_value(self):
         data = {'reserved_port': 65535}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        ReservedPort.objects.count, self.reserved_port_count + 1)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_fail_to_post_ReservedPort_with_reserved_port_greater_than_max_value(self):
         data = {'reserved_port': 65536}
-        self._test_post(self.reserved_port_url, data, self.token_superuser1, HTTP_400_BAD_REQUEST, None, None,
-                        {'reserved_port': ['max_value']}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'reserved_port': ['max_value']}
+        )
 
     # ====================================================================================================
 
@@ -291,23 +739,13 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
         super().setUp()
 
-        # Setup Used Ports database
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}]
-        for data in self.data_list:
-            self._client_post(self.reserved_port_url, data, self.token_superuser1)
-        self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
-
-        data = {'used_port': 10000}
-        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 1)
-
-        data = {'used_port': 10001}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 2)
-
-        self.reserved_port_count = ReservedPort.objects.count()
-        self.used_port_count = UsedPort.objects.count()
+        self.url = self.used_port_url
+        for i in [0, 1, 2, 3]:
+            self.data['superuser1'].append(UsedPortAdminSerializer(self.used_port_objects[i]).data)
+        for i in [2, 3]:
+            self.data['user1'].append(UsedPortSerializer(self.used_port_objects[i]).data)
+        self.model = UsedPort
+        self.count = self.used_port_count
 
     # ====================================================================================================
     # Authentication Tests and Method Tests
@@ -316,84 +754,135 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # ====================================================================================================
     # Superuser
     def test_superuser_get_UsedPort(self):
-        self._test_get(self.used_port_url, self.token_superuser1, HTTP_200_OK, None, self.used_port_count, None,
-                       UsedPort.objects.count, self.used_port_count)
+        self._test_get(
+            token='superuser1',
+            expected_status_code=HTTP_200_OK
+        )
 
     def test_superuser_post_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, self.used_port_count + 1)
-        self._test_get(self.used_port_url, self.token_superuser1, HTTP_200_OK, None, self.used_port_count + 1, None,
-                       UsedPort.objects.count, self.used_port_count + 1)
+        data = {'used_port': 10004}
+        self._test_post(
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_delete_own_UsedPort(self):
-        self._test_delete(self.used_port_url + '10000/', self.token_superuser1, HTTP_204_NO_CONTENT, None, None, None,
-                          UsedPort.objects.count, self.used_port_count - 1)
+        self._test_delete(
+            request_id=10000,
+            token='superuser1',
+            expected_status_code=HTTP_204_NO_CONTENT
+        )
 
     def test_superuser_delete_other_user_UsedPort(self):
-        self._test_delete(self.used_port_url + '10000/', self.token_superuser2, HTTP_204_NO_CONTENT, None, None, None,
-                          UsedPort.objects.count, self.used_port_count - 1)
+        self._test_delete(
+            request_id=10000,
+            token='superuser2',
+            expected_status_code=HTTP_204_NO_CONTENT
+        )
 
     def test_superuser_fail_to_update_own_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_update(self.used_port_url + '10000/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10004}
+        self._test_update(
+            request_id=10000,
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_superuser_fail_to_update_other_user_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_update(self.used_port_url + '10000/', data, self.token_superuser2, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10004}
+        self._test_update(
+            request_id=10000,
+            request_data=data,
+            token='superuser2',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     # ====================================================================================================
     # User
     def test_user_get_UsedPort(self):
-        self._test_get(self.used_port_url, self.token_user1, HTTP_200_OK, None, 1, None, UsedPort.objects.count,
-                       self.used_port_count)
+        self._test_get(
+            token='user1',
+            expected_status_code=HTTP_200_OK,
+        )
 
     def test_user_post_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, self.used_port_count + 1)
-        self._test_get(self.used_port_url, self.token_user1, HTTP_200_OK, None, 2, None, UsedPort.objects.count,
-                       self.used_port_count + 1)
+        data = {'used_port': 10004}
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_delete_own_UsedPort(self):
-        self._test_delete(self.used_port_url + '10001/', self.token_user1, HTTP_204_NO_CONTENT, None, None, None,
-                          UsedPort.objects.count, self.used_port_count - 1)
+        self._test_delete(
+            request_id=10002,
+            token='user1',
+            expected_status_code=HTTP_204_NO_CONTENT
+        )
 
     def test_user_fail_to_delete_other_UsedPort(self):
-        self._test_delete(self.used_port_url + '10001/', self.token_user2, HTTP_403_FORBIDDEN, None, None,
-                          {'detail': 'permission_denied'}, UsedPort.objects.count, self.used_port_count)
+        self._test_delete(
+            request_id=10002,
+            token='user2',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     def test_user_fail_to_update_own_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_update(self.used_port_url + '10001/', data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10004}
+        self._test_update(
+            request_id=10002,
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_user_fail_to_update_other_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_update(self.used_port_url + '10001/', data, self.token_user2, HTTP_403_FORBIDDEN, None, None,
-                          {'detail': 'permission_denied'}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10004}
+        self._test_update(
+            request_id=10002,
+            request_data=data,
+            token='user2',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     # ====================================================================================================
     # Anonymous
     def test_anonymous_fail_to_get_UsedPort(self):
-        self._test_get(self.used_port_url, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'},
-                       UsedPort.objects.count, self.used_port_count)
+        self._test_get(
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_post_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_post(self.used_port_url, data, None, HTTP_401_UNAUTHORIZED, None, None,
-                        {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10004}
+        self._test_post(
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_delete_UsedPort(self):
-        self._test_delete(self.used_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None,
-                          {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
+        self._test_delete(
+            request_id=10000,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_update_UsedPort(self):
-        data = {'used_port': 10002}
-        self._test_update(self.used_port_url + '10000/', data, None, HTTP_401_UNAUTHORIZED, None, None,
-                          {'detail': 'not_authenticated'}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10004}
+        self._test_update(
+            request_id=10000,
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     # ====================================================================================================
     # Syntax Tests
@@ -405,29 +894,49 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # ====================================================================================================
     # used_port
     def test_user_fail_to_post_UsedPort_with_used_port_not_in_ReservedPort(self):
-        data = {'used_port': 10003}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['does_not_exist']}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10005}
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['does_not_exist']}
+        )
 
     def test_user_fail_to_post_UsedPort_with_used_port_already_used(self):
-        data = {'used_port': 10001}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['unique']}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10002}
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['unique']}
+        )
 
     def test_user_fail_to_post_UsedPort_with_used_port_string(self):
         data = {'used_port': 'test'}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['invalid']}, UsedPort.objects.count, self.used_port_count)
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['invalid']}
+        )
 
     def test_user_fail_to_post_UsedPort_with_used_port_float(self):
-        data = {'used_port': 10001.5}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['invalid']}, UsedPort.objects.count, self.used_port_count)
+        data = {'used_port': 10003.5}
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['invalid']}
+        )
 
     def test_user_fail_to_post_UsedPort_with_used_port_none(self):
         data = {}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['required']}, UsedPort.objects.count, self.used_port_count)
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['required']}
+        )
 
     # ====================================================================================================
 
@@ -440,25 +949,11 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     def setUp(self):
         super().setUp()
 
-        # Setup Reserved Port
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002}]
-        for data in self.data_list:
-            self._client_post(self.reserved_port_url, data, self.token_superuser1)
-        self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
-
-        # Setup Used Port
-        data = {'used_port': 10000}
-        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 1)
-        data = {'used_port': 10001}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 2)
-
-        # Setup database count
-        self.reserved_port_count = ReservedPort.objects.count()
-        self.used_port_count = UsedPort.objects.count()
-        self.free_port_count = self.reserved_port_count - self.used_port_count
+        self.url = self.free_port_url
+        self.data['superuser1'].append(model_to_dict(self.reserved_port_objects[4]))
+        self.data['user1'].append(model_to_dict(self.reserved_port_objects[4]))
+        self.model = ReservedPort
+        self.count = self.reserved_port_count
 
     # ====================================================================================================
     # Authentication Tests and Method Tests
@@ -467,61 +962,106 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     # ====================================================================================================
     # Superuser
     def test_superuser_get_FreePort(self):
-        self._test_get(self.free_port_url, self.token_superuser1, HTTP_200_OK, None, self.free_port_count, None, None,
-                       None)
+        self._test_get(
+            token='superuser1',
+            expected_status_code=HTTP_200_OK
+        )
 
     def test_superuser_fail_to_post_FreePort(self):
-        data = {'free_port': 10003}
-        self._test_post(self.free_port_url, data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                        {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+        data = {'free_port': 10005}
+        self._test_post(
+            token='superuser1',
+            request_data=data,
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_superuser_fail_to_delete_FreePort(self):
-        self._test_delete(self.free_port_url + '10000/', self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                          {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_delete(
+            request_id=10004,
+            token='superuser1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_superuser_fail_to_update_FreePort(self):
-        data = {'reserved_port': 10003}
-        self._test_update(self.free_port_url + '10000/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+        data = {'reserved_port': 10005}
+        self._test_update(
+            request_id=10004,
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     # ====================================================================================================
     # User
     def test_user_to_get_FreePort(self):
-        self._test_get(self.free_port_url, self.token_user1, HTTP_200_OK, None, self.free_port_count, None, None, None)
+        self._test_get(
+            token='user1',
+            expected_status_code=HTTP_200_OK
+        )
 
     def test_user_fail_to_post_FreePort(self):
-        data = {'reserved_port': 10003}
-        self._test_post(self.free_port_url, data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                        {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+        data = {'reserved_port': 10005}
+        self._test_post(
+            token='user1',
+            request_data=data,
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_user_fail_to_delete_FreePort(self):
-        self._test_delete(self.free_port_url + '10000/', self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                          {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_delete(
+            request_id=10004,
+            token='user1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_user_fail_to_update_FreePort(self):
-        data = {'reserved_port': 10003}
-        self._test_update(self.free_port_url + '10000/', data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, ReservedPort.objects.count, self.reserved_port_count)
+        data = {'reserved_port': 10005}
+        self._test_update(
+            request_id=10004,
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     # ====================================================================================================
     # Anonymous
     def test_anonymous_fail_to_get_FreePort(self):
-        self._test_get(self.free_port_url, None, HTTP_401_UNAUTHORIZED, None, None, {'detail': 'not_authenticated'},
-                       None, None)
+        self._test_get(
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_post_FreePort(self):
         data = {'reserved_port': 10003}
-        self._test_post(self.free_port_url, data, None, HTTP_401_UNAUTHORIZED, None, None,
-                        {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_post(
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_delete_FreePort(self):
-        self._test_delete(self.free_port_url + '10000/', None, HTTP_401_UNAUTHORIZED, None, None,
-                          {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_delete(
+            request_id=10000,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_update_FreePort(self):
         data = {'reserved_port': 10003}
-        self._test_update(self.free_port_url + '10000/', data, None, HTTP_401_UNAUTHORIZED, None, None,
-                          {'detail': 'not_authenticated'}, ReservedPort.objects.count, self.reserved_port_count)
+        self._test_update(
+            request_id=10000,
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
+
+    # ====================================================================================================
 
 
 # ====================================================================================================
@@ -533,56 +1073,12 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     def setUp(self):
         super().setUp()
 
-        # Setup Reserved Port
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token_superuser1.key)
-        self.data_list = [{'reserved_port': 10000}, {'reserved_port': 10001}, {'reserved_port': 10002},
-                          {'reserved_port': 10003}, {'reserved_port': 10004}]
-        for data in self.data_list:
-            self._client_post(self.reserved_port_url, data, self.token_superuser1)
-        self.assertEqual(ReservedPort.objects.count(), len(self.data_list))
-
-        # Setup Used Port
-        data = {'used_port': 10000}
-        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 1)
-        data = {'used_port': 10001}
-        self._test_post(self.used_port_url, data, self.token_superuser1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 2)
-        data = {'used_port': 10002}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 3)
-        data = {'used_port': 10003}
-        self._test_post(self.used_port_url, data, self.token_user1, HTTP_201_CREATED, data, None, None,
-                        UsedPort.objects.count, 4)
-
-        # Setup CPU Stat
-        self.data = {}
-        self.data['superuser'] = []
-        data = {
-            'used_port': 10000, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000}
-        expected_data = data.copy()
-        expected_data['id'] = 1
-        self._test_post(self.cpu_spec_url, data, self.token_superuser1, HTTP_201_CREATED, expected_data, None, None,
-                        CPUSpec.objects.count, 1)
-        self.data['superuser'].append(expected_data)
-        self.data['user1'] = []
-        data = {
-            'used_port': 10002, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        expected_data = data.copy()
-        expected_data['id'] = 2
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, expected_data, None, None,
-                        CPUSpec.objects.count, 2)
-        self.data['user1'].append(expected_data)
-        self.data['superuser'].append(expected_data)
-
-        # Setup database count
-        self.reserved_port_count = ReservedPort.objects.count()
-        self.used_port_count = UsedPort.objects.count()
-        self.free_port_count = self.reserved_port_count - self.used_port_count
-        self.cpu_spec_count = CPUSpec.objects.count()
+        self.url = self.cpu_spec_url
+        self.data['superuser1'].append(model_to_dict(self.cpu_spec_objects[0]))
+        self.data['superuser1'].append(model_to_dict(self.cpu_spec_objects[1]))
+        self.data['user1'].append(model_to_dict(self.cpu_spec_objects[1]))
+        self.model = CPUSpec
+        self.count = self.cpu_spec_count
 
     # ====================================================================================================
     # Authentication Tests and Methods Tests
@@ -591,131 +1087,210 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # ====================================================================================================
     # Superuser
     def test_superuser_get_CPUSpec(self):
-        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'],
-                       len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(
+            token='superuser1',
+            expected_status_code=HTTP_200_OK
+        )
 
     def test_superuser_post_CPUSpec(self):
         data = {
-            'used_port': 10001, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_superuser1, HTTP_201_CREATED, expected_data, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'] + [expected_data],
-                       len(self.data['superuser']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10001,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            token='superuser1',
+            request_data=data,
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_superuser_fail_to_delete_own_CPUSpec(self):
-        self._test_delete(self.cpu_spec_url + '1/', self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                          {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'],
-                       len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_delete(
+            request_id=1,
+            token='superuser1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_superuser_fail_to_delete_other_CPUSpec(self):
-        self._test_delete(self.cpu_spec_url + '1/', self.token_superuser2, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                          {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'],
-                       len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_delete(
+            request_id=1,
+            token='superuser2',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_superuser_fail_to_update_own_CPUSpec(self):
         data = {
-            'used_port': 10000, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_update(self.cpu_spec_url + '1/', data, self.token_superuser1, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'],
-                       len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10000,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_update(
+            request_id=1,
+            request_data=data,
+            token='superuser1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_superuser_fail_to_update_other_CPUSpec(self):
         data = {
-            'used_port': 10002, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_update(self.cpu_spec_url + '1/', data, self.token_superuser2, HTTP_405_METHOD_NOT_ALLOWED, None,
-                          None, {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_superuser1, HTTP_200_OK, self.data['superuser'],
-                       len(self.data['superuser']), None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10002,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_update(
+            request_id=1,
+            request_data=data,
+            token='superuser2',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     # ====================================================================================================
     # User
     def test_user_get_CPUSpec(self):
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_get(
+            token='user1',
+            expected_status_code=HTTP_200_OK
+        )
 
     def test_user_post_CPUSpec(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, expected_data, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'X86_64',
+            'cpu_bits': 64,
+            'cpu_count': 16,
+            'cpu_arch_string_raw': 'x86_64',
+            'cpu_vendor_id_raw': 'GenuineIntel',
+            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
+            'cpu_hz_actual_friendly': 2903998000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_fail_to_delete_own_CPUSpec(self):
-        self._test_delete(self.cpu_spec_url + '2/', self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                          {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_delete(
+            request_id=2,
+            token='user1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_user_fail_to_delete_other_CPUSpec(self):
-        self._test_delete(self.cpu_spec_url + '2/', self.token_user2, HTTP_403_FORBIDDEN, None, None,
-                          {'detail': 'permission_denied'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+        self._test_delete(
+            request_id=2,
+            token='user2',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     def test_user_fail_to_update_own_CPUSpec(self):
         data = {
-            'used_port': 10002, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000}
-        self._test_update(self.cpu_spec_url + '2/', data, self.token_user1, HTTP_405_METHOD_NOT_ALLOWED, None, None,
-                          {'detail': 'method_not_allowed'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10002,
+            'cpu_arch': 'X86_64',
+            'cpu_bits': 64,
+            'cpu_count': 16,
+            'cpu_arch_string_raw': 'x86_64',
+            'cpu_vendor_id_raw': 'GenuineIntel',
+            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
+            'cpu_hz_actual_friendly': 2903998000
+        }
+        self._test_update(
+            request_id=2,
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
+            expected_error_code={'detail': 'method_not_allowed'}
+        )
 
     def test_user_fail_to_update_other_CPUSpec(self):
         data = {
-            'used_port': 10002, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000}
-        self._test_update(self.cpu_spec_url + '2/', data, self.token_user2, HTTP_403_FORBIDDEN, None, None,
-                          {'detail': 'permission_denied'}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10002,
+            'cpu_arch': 'X86_64',
+            'cpu_bits': 64,
+            'cpu_count': 16,
+            'cpu_arch_string_raw': 'x86_64',
+            'cpu_vendor_id_raw': 'GenuineIntel',
+            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
+            'cpu_hz_actual_friendly': 2903998000
+        }
+        self._test_update(
+            request_id=2,
+            request_data=data,
+            token='user2',
+            expected_status_code=HTTP_403_FORBIDDEN,
+            expected_error_code={'detail': 'permission_denied'}
+        )
 
     # ====================================================================================================
     # Anonymous
     def test_anonymous_fail_to_get_CPUSpec(self):
-        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count,
-                       self.cpu_spec_count)
+        self._test_get(
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_post_CPUSpec(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000}
-        self._test_post(self.cpu_spec_url, data, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count,
-                        self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count,
-                       self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'X86_64',
+            'cpu_bits': 64,
+            'cpu_count': 16,
+            'cpu_arch_string_raw': 'x86_64',
+            'cpu_vendor_id_raw': 'GenuineIntel',
+            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
+            'cpu_hz_actual_friendly': 2903998000
+        }
+        self._test_post(
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_delete_CPUSpec(self):
-        self._test_delete(self.cpu_spec_url + '2/', None, HTTP_401_UNAUTHORIZED, None, None, None,
-                          CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count,
-                       self.cpu_spec_count)
+        self._test_delete(
+            request_id=2,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     def test_anonymous_fail_to_update_CPUSpec(self):
         data = {
-            'used_port': 10002, 'cpu_arch': 'X86_64', 'cpu_bits': 64, 'cpu_count': 16, 'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel', 'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000}
-        self._test_update(self.cpu_spec_url + '2/', data, None, HTTP_401_UNAUTHORIZED, None, None, None,
-                          CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, None, HTTP_401_UNAUTHORIZED, None, None, None, CPUSpec.objects.count,
-                       self.cpu_spec_count)
+            'used_port': 10002,
+            'cpu_arch': 'X86_64',
+            'cpu_bits': 64,
+            'cpu_count': 16,
+            'cpu_arch_string_raw': 'x86_64',
+            'cpu_vendor_id_raw': 'GenuineIntel',
+            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
+            'cpu_hz_actual_friendly': 2903998000
+        }
+        self._test_update(
+            request_id=2,
+            request_data=data,
+            expected_status_code=HTTP_401_UNAUTHORIZED,
+            expected_error_code={'detail': 'not_authenticated'}
+        )
 
     # ====================================================================================================
     # Syntax Tests
@@ -733,139 +1308,257 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # used_port
     def test_user_fail_to_create_CPUSpec_with_used_port_not_in_UsedPort(self):
         data = {
-            'used_port': 9999, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 9999,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_used_port_already_in_use(self):
         data = {
-            'used_port': 10002, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['unique']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10002,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['unique']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_used_port_string(self):
         data = {
-            'used_port': 'test', 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 'test',
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_used_port_float(self):
         data = {
-            'used_port': 10002.5, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10002.5,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_used_port_none(self):
         data = {
-            'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'used_port': ['required']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'used_port': ['required']}
+        )
 
     # ====================================================================================================
     # cpu_bits
     def test_user_fail_to_create_CPUSpec_with_cpu_bits_string(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 'test', 'cpu_count': 4,
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 'test',
+            'cpu_count': 4,
             'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_bits': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_bits': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_bits_float(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 32.5, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_bits': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 32.5,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_bits': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_bits_none(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_bits': ['required']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_bits': ['required']}
+        )
 
     # ====================================================================================================
     # cpu_count
     def test_user_fail_to_create_CPUSpec_with_cpu_count_string(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 'test',
-            'cpu_arch_string_raw': 'aarch64', 'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_count': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 'test',
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_count': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_count_float(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4.5,
-            'cpu_arch_string_raw': 'aarch64', 'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_count': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4.5,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_count': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_count_none(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64,
-            'cpu_arch_string_raw': 'aarch64', 'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_count': ['required']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_count': ['required']}
+        )
 
     # ====================================================================================================
     # cpu_hz_actual_friendly
     def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_string(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 'test'}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_hz_actual_friendly': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 'test'
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_hz_actual_friendly': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_float(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000.5}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_hz_actual_friendly': ['invalid']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000.5
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_hz_actual_friendly': ['invalid']}
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_none(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72'}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_hz_actual_friendly': ['required']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72'
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_hz_actual_friendly': ['required']}
+        )
 
     # ====================================================================================================
     # Boundary Tests
@@ -874,114 +1567,185 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # - cpu_hz_actual_friendly must be equal to or greater than 0
     # ====================================================================================================
     # cpu_bits
-    def test_user_create_CPUSpec_with_cpu_bits_not_32_or_64(self):
+    def test_user_fail_to_create_CPUSpec_with_cpu_bits_equal_to_128(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 128, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_bits': ['value_not_in_list']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 128,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_bits': ['value_not_in_list']}
+        )
 
     # ====================================================================================================
     # cpu_count
     def test_user_fail_to_create_CPUSpec_with_cpu_count_less_than_1(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 0, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_count': ['min_value']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 0,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_count': ['min_value']}
+        )
 
     def test_user_create_CPUSpec_with_cpu_count_equal_to_1(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 1, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 1,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_create_CPUSpec_with_cpu_count_greater_than_1(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 2, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 2,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_create_CPUSpec_with_cpu_count_less_than_128(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 127, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 127,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_create_CPUSpec_with_cpu_count_equal_to_128(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 128, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 128,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_fail_to_create_CPUSpec_with_cpu_count_greater_than_128(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 129, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1800000000}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_count': ['max_value']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 129,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1800000000
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_count': ['max_value']}
+        )
 
     # ====================================================================================================
     # cpu_hz_actual_friendly
     def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_less_than_0(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': -1}
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_400_BAD_REQUEST, None, None,
-                        {'cpu_hz_actual_friendly': ['min_value']}, CPUSpec.objects.count, self.cpu_spec_count)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'], len(self.data['user1']),
-                       None, CPUSpec.objects.count, self.cpu_spec_count)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': -1
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_400_BAD_REQUEST,
+            expected_error_code={'cpu_hz_actual_friendly': ['min_value']}
+        )
 
     def test_user_create_CPUSpec_with_cpu_hz_actual_friendly_equal_to_0(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 0}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 0
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     def test_user_create_CPUSpec_with_cpu_hz_actual_friendly_greater_than_0(self):
         data = {
-            'used_port': 10003, 'cpu_arch': 'ARM_8', 'cpu_bits': 64, 'cpu_count': 4, 'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM', 'cpu_brand_raw': 'Cortex-A72', 'cpu_hz_actual_friendly': 1}
-        expected_data = data.copy()
-        expected_data['id'] = 3
-        self._test_post(self.cpu_spec_url, data, self.token_user1, HTTP_201_CREATED, None, None, None,
-                        CPUSpec.objects.count, self.cpu_spec_count + 1)
-        self._test_get(self.cpu_spec_url, self.token_user1, HTTP_200_OK, self.data['user1'] + [expected_data],
-                       len(self.data['user1']) + 1, None, CPUSpec.objects.count, self.cpu_spec_count + 1)
+            'used_port': 10003,
+            'cpu_arch': 'ARM_8',
+            'cpu_bits': 64,
+            'cpu_count': 4,
+            'cpu_arch_string_raw': 'aarch64',
+            'cpu_vendor_id_raw': 'ARM',
+            'cpu_brand_raw': 'Cortex-A72',
+            'cpu_hz_actual_friendly': 1
+        }
+        self._test_post(
+            request_data=data,
+            token='user1',
+            expected_status_code=HTTP_201_CREATED
+        )
 
     # ====================================================================================================
-
 
 # ====================================================================================================
 # CPU Stat Tests

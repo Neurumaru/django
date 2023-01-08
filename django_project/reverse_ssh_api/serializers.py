@@ -32,7 +32,13 @@ class UsedPortAdminSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UsedPort
-        fields = ['used_port', 'user', 'username', 'email', 'first_name', 'last_name']
+        fields = [
+            'used_port',
+            'user',
+            'username',
+            'email',
+            'first_name',
+            'last_name']
         extra_kwargs = {
             'user': {'read_only': True}
         }
@@ -44,8 +50,17 @@ class UsedPortAdminSerializer(serializers.ModelSerializer):
 class CPUSpecSerializer(serializers.ModelSerializer):
     class Meta:
         model = CPUSpec
-        fields = ['id', 'used_port', 'cpu_arch', 'cpu_bits', 'cpu_count', 'cpu_arch_string_raw', 'cpu_vendor_id_raw',
-                  'cpu_brand_raw', 'cpu_hz_actual_friendly']
+        fields = [
+            'id',
+            'used_port',
+            'cpu_arch',
+            'cpu_bits',
+            'cpu_count',
+            'cpu_arch_string_raw',
+            'cpu_vendor_id_raw',
+            'cpu_brand_raw',
+            'cpu_hz_actual_friendly'
+        ]
 
 # class CPUSerializer(serializers.ModelSerializer):
 #     class Meta:
