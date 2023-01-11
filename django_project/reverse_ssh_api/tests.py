@@ -1,4 +1,4 @@
-from typing import Type, List, TypeVar, Tuple, Callable
+from typing import Type, List, TypeVar, Tuple, Callable, Dict
 
 from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
@@ -7,6 +7,7 @@ from rest_framework.status import *
 from rest_framework.test import APITestCase
 from reverse_ssh_api.models import *
 from django.db.models import Model
+from parameterized import parameterized
 
 from reverse_ssh_api.serializers import UsedPortAdminSerializer, UsedPortSerializer
 
@@ -219,11 +220,9 @@ class ReverseSSHAPITestCase(APITestCase):
 
     def _create_expected_data(
             self,
-            data: dict,
-            model: Type[Model] = None
+            data: dict
     ) -> dict:
-        if model is None:
-            model = self.model
+        model = self.model
         expected_data = data.copy()
         if model._meta.pk.name == 'id':
             expected_data['id'] = model.objects.count() + 1
@@ -234,10 +233,10 @@ class ReverseSSHAPITestCase(APITestCase):
     def _client_get(
             self,
             url: str = None,
-            token: str = None,
+            request_token: str = None,
             format: str = 'json'
     ) -> Response:
-        self.client.credentials(HTTP_AUTHORIZATION=token)
+        self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.get(
             path=url,
             format=format)
@@ -247,10 +246,10 @@ class ReverseSSHAPITestCase(APITestCase):
             self,
             url: str = None,
             request_data: dict = None,
-            token: str = None,
+            request_token: str = None,
             format: str = 'json'
     ) -> Response:
-        self.client.credentials(HTTP_AUTHORIZATION=token)
+        self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.post(
             path=url,
             data=request_data,
@@ -260,10 +259,10 @@ class ReverseSSHAPITestCase(APITestCase):
     def _client_delete(
             self,
             url: str = None,
-            token: str = None,
+            request_token: str = None,
             format: str = 'json'
     ) -> Response:
-        self.client.credentials(HTTP_AUTHORIZATION=token)
+        self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.delete(
             path=url,
             format=format)
@@ -273,10 +272,10 @@ class ReverseSSHAPITestCase(APITestCase):
             self,
             url: str = None,
             request_data: dict = None,
-            token: str = None,
+            request_token: str = None,
             format: str = 'json'
     ) -> Response:
-        self.client.credentials(HTTP_AUTHORIZATION=token)
+        self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.put(
             path=url,
             data=request_data,
@@ -324,7 +323,7 @@ class ReverseSSHAPITestCase(APITestCase):
             self,
             url: str = None,
             request_id: int = None,
-            token: str = None,
+            request_token: str = None,
             request_data: dict = None,
             expected_status_code: int = None,
             expected_data: str = None,
@@ -337,17 +336,17 @@ class ReverseSSHAPITestCase(APITestCase):
         if request_id is not None:
             url = f'{url}{request_id}/'
 
-        tmp_token = token
-        if token is not None:
-            token = 'Token ' + self.token[token].key
+        tmp_request_token = request_token
+        if request_token is not None:
+            request_token = 'Token ' + self.token[request_token].key
         else:
-            token = ''
+            request_token = ''
 
         if expected_status_code == HTTP_200_OK:
-            expected_data = self.data[tmp_token]
-        elif expected_status_code == HTTP_201_CREATED\
+            expected_data = self.data[tmp_request_token]
+        elif expected_status_code == HTTP_201_CREATED \
                 or expected_status_code == HTTP_202_ACCEPTED:
-            expected_data = self._create_expected_data(request_data, self.model)
+            expected_data = self._create_expected_data(request_data)
 
         if count_function is None:
             count_function = self.model.objects.count
@@ -359,34 +358,31 @@ class ReverseSSHAPITestCase(APITestCase):
             elif expected_status_code == HTTP_204_NO_CONTENT:
                 expected_count -= 1
 
-        return url, token, expected_data, count_function, expected_count
+        return url, request_token, expected_data, count_function, expected_count
 
     def _test_get(
             self,
             url: str = None,
-            token: str = None,
+            request_token: str = None,
             expected_status_code: int = HTTP_200_OK,
             expected_data: str = None,
-            expected_data_len: None = None,
-            expected_error_code: dict = None,
-            count_function: None = None,
-            expected_count: None = None
+            expected_error_code: dict = None
     ) -> None:
         (
             url,
-            token,
+            request_token,
             expected_data,
             count_function,
             expected_count
         ) = self.__validate_parameter(
             url=url,
-            token=token,
+            request_token=request_token,
             expected_status_code=expected_status_code,
             expected_data=expected_data
         )
         response = self._client_get(
             url=url,
-            token=token
+            request_token=request_token
         )
         self._assert_response(
             response=response,
@@ -401,23 +397,20 @@ class ReverseSSHAPITestCase(APITestCase):
             self,
             url: str = None,
             request_data: dict = None,
-            token: str = None,
+            request_token: str = None,
             expected_status_code: int = HTTP_201_CREATED,
             expected_data: str = None,
-            expected_data_len: None = None,
-            expected_error_code: dict = None,
-            count_function: None = None,
-            expected_count: None = None
+            expected_error_code: dict = None
     ) -> None:
         (
             url,
-            token,
+            request_token,
             expected_data,
             count_function,
             expected_count
         ) = self.__validate_parameter(
             url=url,
-            token=token,
+            request_token=request_token,
             request_data=request_data,
             expected_status_code=expected_status_code,
             expected_data=expected_data
@@ -425,7 +418,7 @@ class ReverseSSHAPITestCase(APITestCase):
         response = self._client_post(
             url=url,
             request_data=request_data,
-            token=token
+            request_token=request_token
         )
         self._assert_response(
             response=response,
@@ -438,31 +431,28 @@ class ReverseSSHAPITestCase(APITestCase):
 
     def _test_delete(
             self, url: str = None,
-            token: str = None,
+            request_token: str = None,
             expected_status_code: int = HTTP_204_NO_CONTENT,
             expected_data: str = None,
-            expected_data_len: None = None,
             expected_error_code: dict = None,
-            count_function: None = None,
-            expected_count: None = None,
             request_id: int = None
     ) -> None:
         (
             url,
-            token,
+            request_token,
             expected_data,
             count_function,
             expected_count
         ) = self.__validate_parameter(
             url=url,
             request_id=request_id,
-            token=token,
+            request_token=request_token,
             expected_status_code=expected_status_code,
             expected_data=expected_data
         )
         response = self._client_delete(
             url=url,
-            token=token
+            request_token=request_token
         )
         self._assert_response(
             response=response,
@@ -476,26 +466,23 @@ class ReverseSSHAPITestCase(APITestCase):
     def _test_update(
             self,
             url: str = None,
+            request_id: int = None,
             request_data: dict = None,
-            token: str = None,
+            request_token: str = None,
             expected_status_code: int = HTTP_200_OK,
             expected_data: str = None,
-            expected_data_len: None = None,
-            expected_error_code: dict = None,
-            count_function=None,
-            expected_count: None = None,
-            request_id: int = None
+            expected_error_code: dict = None
     ) -> None:
         (
             url,
-            token,
+            request_token,
             expected_data,
             count_function,
             expected_count
         ) = self.__validate_parameter(
             url=url,
             request_id=request_id,
-            token=token,
+            request_token=request_token,
             request_data=request_data,
             expected_status_code=expected_status_code,
             expected_data=expected_data
@@ -503,7 +490,7 @@ class ReverseSSHAPITestCase(APITestCase):
         response = self._client_put(
             url=url,
             request_data=request_data,
-            token=token
+            request_token=request_token
         )
         self._assert_response(
             response=response,
@@ -513,6 +500,18 @@ class ReverseSSHAPITestCase(APITestCase):
             count_function=count_function,
             expected_count=expected_count
         )
+
+    def _test(self, method: str, data: Dict[str, object]) -> None:
+        if method == 'GET':
+            self._test_get(**data)
+        elif method == 'POST':
+            self._test_post(**data)
+        elif method == 'DELETE':
+            self._test_delete(**data)
+        elif method == 'UPDATE':
+            self._test_update(**data)
+        else:
+            self.fail('테스트 케이스 오류')
 
     # ==============================================================================
 
@@ -537,194 +536,148 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     # Authentication Tests and Method Tests
     # - Superuser can get, post, and delete ReservedPort
     # ====================================================================================================
-    # Superuser
-    def test_superuser_get_ReservedPort(self):
-        self._test_get(
-            token='superuser1',
-            expected_status_code=HTTP_200_OK
-        )
-
-    def test_superuser_post_ReservedPort(self):
-        data = {'reserved_port': 10005}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_delete_ReservedPort(self):
-        self._test_delete(
-            request_id=10000,
-            token='superuser1',
-            expected_status_code=HTTP_204_NO_CONTENT,
-        )
-
-    def test_superuser_fail_to_update_ReservedPort(self):
-        data = {'reserved_port': 10005}
-        self._test_update(
-            request_id=10000,
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-        )
-
-    # ====================================================================================================
-    # User
-    def test_user_fail_to_get_ReservedPort(self):
-        self._test_get(
-            token='user1',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    def test_user_fail_to_post_ReservedPort(self):
-        data = {'reserved_port': 10005}
-        self._test_post(
-            request_data=data,
-            token='user1',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    def test_user_fail_to_delete_ReservedPort(self):
-        self._test_delete(
-            request_id=10000,
-            token='user1',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    def test_user_fail_to_update_ReservedPort(self):
-        data = {'reserved_port': 10005}
-        self._test_update(
-            request_id=10000,
-            request_data=data,
-            token='user1',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    # ====================================================================================================
-    # Anonymous
-    def test_anonymous_fail_to_get_ReservedPort(self):
-        self._test_get(
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_post_ReservedPort(self):
-        data = {'reserved_port': 10005}
-        self._test_post(
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_delete_ReservedPort(self):
-        self._test_delete(
-            request_id=10000,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # Superuser
+        ('allow superuser to GET', 'GET', {
+            'request_token': 'superuser1',
+            'expected_status_code': HTTP_200_OK}),
+        ('allow superuser to POST', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 10005},
+            'expected_status_code': HTTP_201_CREATED}),
+        ('allow superuser to DELETE', 'DELETE', {
+            'request_id': 10000,
+            'request_token': 'superuser1',
+            'expected_status_code': HTTP_204_NO_CONTENT}),
+        ('allow superuser to UPDATE', 'UPDATE', {
+            'request_id': 10000,
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 10005},
+            'expected_status_code': HTTP_405_METHOD_NOT_ALLOWED,
+            'expected_error_code': {'detail': 'method_not_allowed'}}),
+        # ====================================================================================================
+        # User
+        ('deny user to GET', 'GET', {
+            'request_token': 'user1',
+            'expected_status_code': HTTP_403_FORBIDDEN,
+            'expected_error_code': {'detail': 'permission_denied'}}),
+        ('deny user to POST', 'POST', {
+            'request_token': 'user1',
+            'request_data': {'reserved_port': 10005},
+            'expected_status_code': HTTP_403_FORBIDDEN,
+            'expected_error_code': {'detail': 'permission_denied'}}),
+        ('deny user to DELETE', 'DELETE', {
+            'request_id': 10000,
+            'request_token': 'user1',
+            'expected_status_code': HTTP_403_FORBIDDEN,
+            'expected_error_code': {'detail': 'permission_denied'}}),
+        ('deny user to UPDATE', 'UPDATE', {
+            'request_id': 10000,
+            'request_token': 'user1',
+            'request_data': {'reserved_port': 10005},
+            'expected_status_code': HTTP_403_FORBIDDEN,
+            'expected_error_code': {'detail': 'permission_denied'}}),
+        # ====================================================================================================
+        # Anonymous
+        ('deny anonymous to GET', 'GET', {
+            'expected_status_code': HTTP_401_UNAUTHORIZED,
+            'expected_error_code': {'detail': 'not_authenticated'}}),
+        ('deny anonymous to POST', 'POST', {
+            'request_data': {'reserved_port': 10005},
+            'expected_status_code': HTTP_401_UNAUTHORIZED,
+            'expected_error_code': {'detail': 'not_authenticated'}}),
+        ('deny anonymous to DELETE', 'DELETE', {
+            'request_id': 10000,
+            'expected_status_code': HTTP_401_UNAUTHORIZED,
+            'expected_error_code': {'detail': 'not_authenticated'}}),
+        ('deny anonymous to UPDATE', 'UPDATE', {
+            'request_id': 10000,
+            'request_data': {'reserved_port': 10005},
+            'expected_status_code': HTTP_401_UNAUTHORIZED,
+            'expected_error_code': {'detail': 'not_authenticated'}}),
+        # ====================================================================================================
+    ])
+    def test_authentication(self, _: str, method: str, data: Dict[str, object]):
+        self._test(method=method, data=data)
 
     # ====================================================================================================
     # Syntax Tests
     # - reserved_port
     #   - It's not already used
-    #   - It's an integer (not char, float, etc.)
+    #   - It's an integer (not string, float, etc.)
     #   - It's not null
     # ====================================================================================================
-    # reserved_port
-    def test_superuser_fail_to_post_ReservedPort_with_reserved_port_already_used(self):
-        data = {'reserved_port': 10000}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'reserved_port': ['unique']}
-        )
-
-    def test_superuser_fail_to_post_ReservedPort_with_reserved_port_string(self):
-        data = {'reserved_port': 'test'}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'reserved_port': ['invalid']}
-        )
-
-    def test_superuser_fail_to_post_ReservedPort_with_reserved_port_float(self):
-        data = {'reserved_port': 1024.5}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'reserved_port': ['invalid']}
-        )
-
-    def test_superuser_fail_to_post_ReservedPort_with_reserved_port_none(self):
-        data = {}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'reserved_port': ['required']}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # reserved_port
+        ('deny superuser to POST with reserved_port already used', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 10000},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['unique']}}),
+        ('deny superuser to POST with reserved_port string type', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 'test'},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['invalid']}}),
+        ('deny superuser to POST with reserved_port float type', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 1024.5},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['invalid']}}),
+        ('deny superuser to POST with reserved_port none', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': None},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['null']}}),
+        ('deny superuser to POST with reserved_port null', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['required']}}),
+        # ====================================================================================================
+    ])
+    def test_syntax(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
     # Boundary Tests
     # - reserved_port: between 1024 and 65535
     # ====================================================================================================
-    # reserved_port
-    def test_superuser_fail_to_post_ReservedPort_with_reserved_port_lower_than_min_value(self):
-        data = {'reserved_port': 1023}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'reserved_port': ['min_value']}
-        )
-
-    def test_superuser_post_ReservedPort_with_reserved_port_equal_to_min_value(self):
-        data = {'reserved_port': 1024}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_post_ReservedPort_with_reserved_port_greater_than_min_value(self):
-        data = {'reserved_port': 1025}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_post_rReservedPort_with_reserved_port_lower_than_max_value(self):
-        data = {'reserved_port': 65534}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_post_ReservedPort_with_reserved_port_equal_to_max_value(self):
-        data = {'reserved_port': 65535}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_fail_to_post_ReservedPort_with_reserved_port_greater_than_max_value(self):
-        data = {'reserved_port': 65536}
-        self._test_post(
-            request_data=data,
-            token='superuser1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'reserved_port': ['max_value']}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # reserved_port
+        ('deny superuser to POST with reserved_port less than min value, 1023', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 1023},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['min_value']}}),
+        ('allow superuser to POST with reserved_port equal to min value, 1024', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 1024},
+            'expected_status_code': HTTP_201_CREATED}),
+        ('allow superuser to POST with reserved_port greater than min value, 1025', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 1025},
+            'expected_status_code': HTTP_201_CREATED}),
+        ('allow superuser to POST with reserved_port less than max value, 65534', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 65534},
+            'expected_status_code': HTTP_201_CREATED}),
+        ('allow superuser to POST with reserved_port equal to max value, 65535', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 65535},
+            'expected_status_code': HTTP_201_CREATED}),
+        ('deny superuser to POST with reserved_port greater than max value, 65536', 'POST', {
+            'request_token': 'superuser1',
+            'request_data': {'reserved_port': 65536},
+            'expected_status_code': HTTP_400_BAD_REQUEST,
+            'expected_error_code': {'reserved_port': ['max_value']}}),
+        # ====================================================================================================
+    ])
+    def test_boundary(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
 
@@ -755,7 +708,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # Superuser
     def test_superuser_get_UsedPort(self):
         self._test_get(
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_200_OK
         )
 
@@ -763,21 +716,21 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {'used_port': 10004}
         self._test_post(
             request_data=data,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_201_CREATED
         )
 
     def test_superuser_delete_own_UsedPort(self):
         self._test_delete(
             request_id=10000,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_204_NO_CONTENT
         )
 
     def test_superuser_delete_other_user_UsedPort(self):
         self._test_delete(
             request_id=10000,
-            token='superuser2',
+            request_token='superuser2',
             expected_status_code=HTTP_204_NO_CONTENT
         )
 
@@ -786,7 +739,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=10000,
             request_data=data,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -796,7 +749,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=10000,
             request_data=data,
-            token='superuser2',
+            request_token='superuser2',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -805,7 +758,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # User
     def test_user_get_UsedPort(self):
         self._test_get(
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_200_OK,
         )
 
@@ -813,21 +766,21 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {'used_port': 10004}
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
     def test_user_delete_own_UsedPort(self):
         self._test_delete(
             request_id=10002,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_204_NO_CONTENT
         )
 
     def test_user_fail_to_delete_other_UsedPort(self):
         self._test_delete(
             request_id=10002,
-            token='user2',
+            request_token='user2',
             expected_status_code=HTTP_403_FORBIDDEN,
             expected_error_code={'detail': 'permission_denied'}
         )
@@ -837,7 +790,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=10002,
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -847,7 +800,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=10002,
             request_data=data,
-            token='user2',
+            request_token='user2',
             expected_status_code=HTTP_403_FORBIDDEN,
             expected_error_code={'detail': 'permission_denied'}
         )
@@ -897,7 +850,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {'used_port': 10005}
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['does_not_exist']}
         )
@@ -906,7 +859,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {'used_port': 10002}
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['unique']}
         )
@@ -915,7 +868,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {'used_port': 'test'}
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['invalid']}
         )
@@ -924,7 +877,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {'used_port': 10003.5}
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['invalid']}
         )
@@ -933,7 +886,7 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
         data = {}
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['required']}
         )
@@ -963,14 +916,14 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     # Superuser
     def test_superuser_get_FreePort(self):
         self._test_get(
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_200_OK
         )
 
     def test_superuser_fail_to_post_FreePort(self):
         data = {'free_port': 10005}
         self._test_post(
-            token='superuser1',
+            request_token='superuser1',
             request_data=data,
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
@@ -979,7 +932,7 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     def test_superuser_fail_to_delete_FreePort(self):
         self._test_delete(
             request_id=10004,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -989,7 +942,7 @@ class FreePortTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=10004,
             request_data=data,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -998,14 +951,14 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     # User
     def test_user_to_get_FreePort(self):
         self._test_get(
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_200_OK
         )
 
     def test_user_fail_to_post_FreePort(self):
         data = {'reserved_port': 10005}
         self._test_post(
-            token='user1',
+            request_token='user1',
             request_data=data,
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
@@ -1014,7 +967,7 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     def test_user_fail_to_delete_FreePort(self):
         self._test_delete(
             request_id=10004,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1024,7 +977,7 @@ class FreePortTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=10004,
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1088,7 +1041,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # Superuser
     def test_superuser_get_CPUSpec(self):
         self._test_get(
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_200_OK
         )
 
@@ -1104,7 +1057,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
             'cpu_hz_actual_friendly': 1800000000
         }
         self._test_post(
-            token='superuser1',
+            request_token='superuser1',
             request_data=data,
             expected_status_code=HTTP_201_CREATED
         )
@@ -1112,7 +1065,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     def test_superuser_fail_to_delete_own_CPUSpec(self):
         self._test_delete(
             request_id=1,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1120,7 +1073,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     def test_superuser_fail_to_delete_other_CPUSpec(self):
         self._test_delete(
             request_id=1,
-            token='superuser2',
+            request_token='superuser2',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1139,7 +1092,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=1,
             request_data=data,
-            token='superuser1',
+            request_token='superuser1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1158,7 +1111,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=1,
             request_data=data,
-            token='superuser2',
+            request_token='superuser2',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1167,7 +1120,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # User
     def test_user_get_CPUSpec(self):
         self._test_get(
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_200_OK
         )
 
@@ -1184,14 +1137,14 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
     def test_user_fail_to_delete_own_CPUSpec(self):
         self._test_delete(
             request_id=2,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1199,7 +1152,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     def test_user_fail_to_delete_other_CPUSpec(self):
         self._test_delete(
             request_id=2,
-            token='user2',
+            request_token='user2',
             expected_status_code=HTTP_403_FORBIDDEN,
             expected_error_code={'detail': 'permission_denied'}
         )
@@ -1218,7 +1171,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=2,
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
             expected_error_code={'detail': 'method_not_allowed'}
         )
@@ -1237,7 +1190,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         self._test_update(
             request_id=2,
             request_data=data,
-            token='user2',
+            request_token='user2',
             expected_status_code=HTTP_403_FORBIDDEN,
             expected_error_code={'detail': 'permission_denied'}
         )
@@ -1319,7 +1272,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['invalid']}
         )
@@ -1337,7 +1290,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['unique']}
         )
@@ -1355,7 +1308,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['invalid']}
         )
@@ -1373,7 +1326,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['invalid']}
         )
@@ -1390,7 +1343,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'used_port': ['required']}
         )
@@ -1410,7 +1363,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_bits': ['invalid']}
         )
@@ -1428,7 +1381,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_bits': ['invalid']}
         )
@@ -1445,7 +1398,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_bits': ['required']}
         )
@@ -1465,7 +1418,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_count': ['invalid']}
         )
@@ -1483,7 +1436,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_count': ['invalid']}
         )
@@ -1500,7 +1453,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_count': ['required']}
         )
@@ -1520,7 +1473,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_hz_actual_friendly': ['invalid']}
         )
@@ -1538,7 +1491,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_hz_actual_friendly': ['invalid']}
         )
@@ -1555,7 +1508,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_hz_actual_friendly': ['required']}
         )
@@ -1580,7 +1533,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_bits': ['value_not_in_list']}
         )
@@ -1600,7 +1553,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_count': ['min_value']}
         )
@@ -1618,7 +1571,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
@@ -1635,7 +1588,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
@@ -1652,7 +1605,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
@@ -1669,7 +1622,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
@@ -1686,7 +1639,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_count': ['max_value']}
         )
@@ -1706,7 +1659,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_400_BAD_REQUEST,
             expected_error_code={'cpu_hz_actual_friendly': ['min_value']}
         )
@@ -1724,7 +1677,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
@@ -1741,7 +1694,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         }
         self._test_post(
             request_data=data,
-            token='user1',
+            request_token='user1',
             expected_status_code=HTTP_201_CREATED
         )
 
