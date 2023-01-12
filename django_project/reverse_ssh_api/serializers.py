@@ -21,6 +21,17 @@ class UsedPortSerializer(serializers.ModelSerializer):
 
 
 # ====================================================================================================
+# FreePortSerializer
+# ====================================================================================================
+class FreePortSerializer(serializers.ModelSerializer):
+    free_port = serializers.IntegerField(source='reserved_port', read_only=True)
+
+    class Meta:
+        model = ReservedPort
+        fields = ['free_port']
+
+
+# ====================================================================================================
 # UsedPortSerializer (for superuser)
 # - Add user field to the read-only fields
 # ====================================================================================================

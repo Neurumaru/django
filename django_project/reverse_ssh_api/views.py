@@ -9,6 +9,8 @@ from rest_framework.status import \
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, AuthenticationFailed, \
     ValidationError, ErrorDetail
 
+from reverse_ssh_api.utils import map_dictionary_keys
+
 
 # ====================================================================================================
 # ReservedPortView
@@ -54,7 +56,7 @@ class UsedPortView(ModelViewSet):
     # POST /api/used-port/
     # - Add request.user to the serializer
     # ====================================================================================================
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         # Get user from request
         user = User.objects.get(username=request.user)
         if user is None:
@@ -79,7 +81,7 @@ class UsedPortView(ModelViewSet):
     # - Superuser can access all used ports
     # - User can only access their own used ports
     # ====================================================================================================
-    def list(self, request):
+    def list(self, request, *args, **kwargs):
         # Superuser can access all used ports
         if request.user.is_superuser:
             queryset = self.get_queryset()
@@ -133,7 +135,7 @@ class UsedPortView(ModelViewSet):
 # ====================================================================================================
 class FreePortView(ModelViewSet):
     queryset = ReservedPort.objects.values('reserved_port').difference(UsedPort.objects.values('used_port'))
-    serializer_class = ReservedPortSerializer
+    serializer_class = FreePortSerializer
 
     # ====================================================================================================
     # Authentication
@@ -144,7 +146,7 @@ class FreePortView(ModelViewSet):
     # POST /api/free-port/
     # - Method not allowed
     # ====================================================================================================
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         raise MethodNotAllowed(request.method)
 
     # ====================================================================================================
@@ -181,7 +183,7 @@ class CPUSpecView(ModelViewSet):
     # POST /api/cpu-spec/
     # - Check if the user has used port
     # ====================================================================================================
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         # Get user from request
         request_user = User.objects.get(username=request.user)
         if request_user is None:
@@ -192,6 +194,11 @@ class CPUSpecView(ModelViewSet):
                 ErrorDetail(f'Ensure this value exists in request data', 'required')
             ]})
 
+        if request.data['used_port'] is None:
+            raise ValidationError({'used_port': [
+                ErrorDetail(f'Ensure the type of this value is int (This value is None)', 'null')
+            ]})
+
         if type(request.data['used_port']) is not int:
             raise ValidationError({'used_port': [
                 f'Ensure the type of this value is int (The type of this value is {type(request.data["used_port"])})'
@@ -199,20 +206,24 @@ class CPUSpecView(ModelViewSet):
 
         used_port = UsedPort.objects.filter(used_port=request.data['used_port'])
         if len(used_port) != 1:
-            raise ValidationError({'used_port': ['Used port does not exist']})
+            raise ValidationError({'used_port': [
+                ErrorDetail(f'Does not exist in UsedPort', 'does_not_exist')
+            ]})
 
         used_port_user = used_port[0].user
-        if used_port_user is None or request_user != used_port_user:
+        if used_port_user is None:
+            raise PermissionDenied()
+        if request_user.is_superuser is False and request_user != used_port_user:
             raise PermissionDenied()
 
-        return super().create(request)
+        return super().create(request=request, args=args, kwargs=kwargs)
 
     # ====================================================================================================
     # GET /api/cpu-spec/
     # - Superuser can access all CPU specs
     # - User can only access their own CPU specs
     # ====================================================================================================
-    def list(self, request):
+    def list(self, request, *args, **kwargs):
         # User Authentication
         request_user = User.objects.get(username=request.user)
         if request_user is None:

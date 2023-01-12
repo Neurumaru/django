@@ -10,8 +10,9 @@ from django.db.models import Model
 from parameterized import parameterized
 
 from reverse_ssh_api.serializers import UsedPortAdminSerializer, UsedPortSerializer
+from reverse_ssh_api.utils import map_dictionary_keys
 
-T = TypeVar('T', bound=Type[Model])
+T = TypeVar("T", bound=Type[Model])
 
 
 # ==============================================================================
@@ -22,65 +23,65 @@ class ReverseSSHAPITestCase(APITestCase):
     # setUp
     def setUp(self):
         # Setup Users
-        self.superuser1 = User.objects.create_superuser(username='superuser1', password='superuser')
-        self.superuser2 = User.objects.create_superuser(username='superuser2', password='superuser')
+        self.superuser1 = User.objects.create_superuser(username="superuser1", password="superuser")
+        self.superuser2 = User.objects.create_superuser(username="superuser2", password="superuser")
         self.token_superuser1, _ = Token.objects.get_or_create(user=self.superuser1)
         self.token_superuser2, _ = Token.objects.get_or_create(user=self.superuser2)
-        self.user1 = User.objects.create_user(username='user1', password='user')
-        self.user2 = User.objects.create_user(username='user2', password='user')
+        self.user1 = User.objects.create_user(username="user1", password="user")
+        self.user2 = User.objects.create_user(username="user2", password="user")
         self.token_user1, _ = Token.objects.get_or_create(user=self.user1)
         self.token_user2, _ = Token.objects.get_or_create(user=self.user2)
         self.token = {
-            'superuser1': self.token_superuser1,
-            'superuser2': self.token_superuser2,
-            'user1': self.token_user1,
-            'user2': self.token_user2
+            "superuser1": self.token_superuser1,
+            "superuser2": self.token_superuser2,
+            "user1": self.token_user1,
+            "user2": self.token_user2
         }
 
         # Setup Reserved Port
         data_list = [
-            {'reserved_port': i}
+            {"reserved_port": i}
             for i in [10000, 10001, 10002, 10003, 10004]
         ]
         self.reserved_port_objects = self.__create_objects_in_model(ReservedPort, data_list)
 
         # Setup Used Port
         data_list = [
-            {'used_port': self.reserved_port_objects[i], 'user': self.superuser1}
-            for i in [0, 1]
-        ] + [
-            {'used_port': self.reserved_port_objects[i], 'user': self.user1}
-            for i in [2, 3]
-        ]
+                        {"used_port": self.reserved_port_objects[i], "user": self.superuser1}
+                        for i in [0, 1]
+                    ] + [
+                        {"used_port": self.reserved_port_objects[i], "user": self.user1}
+                        for i in [2, 3]
+                    ]
         self.used_port_objects = self.__create_objects_in_model(UsedPort, data_list)
 
         # Setup CPU Spec
         data_list = [
             {
-                'used_port': self.used_port_objects[0],
-                'cpu_arch': 'X86_64',
-                'cpu_bits': 64,
-                'cpu_count': 16,
-                'cpu_arch_string_raw': 'x86_64',
-                'cpu_vendor_id_raw': 'GenuineIntel',
-                'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-                'cpu_hz_actual_friendly': 2903998000
+                "used_port": self.used_port_objects[0],
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000
             }, {
-                'used_port': self.used_port_objects[2],
-                'cpu_arch': 'ARM_8',
-                'cpu_bits': 64,
-                'cpu_count': 4,
-                'cpu_arch_string_raw': 'aarch64',
-                'cpu_vendor_id_raw': 'ARM',
-                'cpu_brand_raw': 'Cortex-A72',
-                'cpu_hz_actual_friendly': 1800000000
+                "used_port": self.used_port_objects[2],
+                "cpu_arch": "ARM_8",
+                "cpu_bits": 64,
+                "cpu_count": 4,
+                "cpu_arch_string_raw": "aarch64",
+                "cpu_vendor_id_raw": "ARM",
+                "cpu_brand_raw": "Cortex-A72",
+                "cpu_hz_actual_friendly": 1800000000
             },
         ]
         self.cpu_spec_objects = self.__create_objects_in_model(CPUSpec, data_list)
 
         # Setup CPU Stat
         data_list = [
-            {'cpu_spec': self.cpu_spec_objects[i], 'cpu_core': j, 'cpu_percent': 0.0}
+            {"cpu_spec": self.cpu_spec_objects[i], "cpu_core": j, "cpu_percent": 0.0}
             for i in [0, 1] for j in range(self.cpu_spec_objects[i].cpu_count)
         ]
         self.cpu_stat_objects = self.__create_objects_in_model(CPUStat, data_list)
@@ -88,11 +89,11 @@ class ReverseSSHAPITestCase(APITestCase):
         # Setup Memory Spec
         data_list = [
             {
-                'used_port': self.used_port_objects[0],
-                'memory_total': 34282405888
+                "used_port": self.used_port_objects[0],
+                "memory_total": 34282405888
             }, {
-                'used_port': self.used_port_objects[2],
-                'memory_total': 818716720
+                "used_port": self.used_port_objects[2],
+                "memory_total": 818716720
             }
         ]
         self.memory_spec_objects = self.__create_objects_in_model(MemorySpec, data_list)
@@ -100,22 +101,22 @@ class ReverseSSHAPITestCase(APITestCase):
         # Setup Memory Stat
         data_list = [
             {
-                'memory_spec': self.memory_spec_objects[0],
-                'memory_used': 9745108992,
-                'memory_available': 24539418624,
-                'memory_free': 24541990912,
-                'swap_total': 5100273664,
-                'swap_used': 2776940544,
-                'swap_free': 2325467136
+                "memory_spec": self.memory_spec_objects[0],
+                "memory_used": 9745108992,
+                "memory_available": 24539418624,
+                "memory_free": 24541990912,
+                "swap_total": 5100273664,
+                "swap_used": 2776940544,
+                "swap_free": 2325467136
             }, {
 
-                'memory_spec': self.memory_spec_objects[1],
-                'memory_used': 1238990848,
-                'memory_available': 6621032448,
-                'memory_free': 5447192576,
-                'swap_total': 0,
-                'swap_used': 0,
-                'swap_free': 0
+                "memory_spec": self.memory_spec_objects[1],
+                "memory_used": 1238990848,
+                "memory_available": 6621032448,
+                "memory_free": 5447192576,
+                "swap_total": 0,
+                "swap_used": 0,
+                "swap_free": 0
             }
         ]
         self.memory_stat_objects = self.__create_objects_in_model(MemoryStat, data_list)
@@ -123,29 +124,29 @@ class ReverseSSHAPITestCase(APITestCase):
         # Setup GPU Spec
         data_list = [
             {
-                'used_port': self.used_port_objects[0],
-                'gpu_index': 0,
-                'gpu_name': b'NVIDIA GeForce RTX 3080',
-                'gpu_brand': b'Geforce',
-                'gpu_nvml_version': b'11.515.766.02',
-                'gpu_driver_version': b'517.48',
-                'gpu_vbios_version': b'94.02.26.08.34',
-                'gpu_multi_gpu_board': False,
-                'gpu_display_mode': True,
-                'gpu_display_active': True,
-                'gpu_persistence_mode': True,
-                'gpu_compute_mode': b'DEFAULT',
-                'gpu_power_management_mode': True,
-                'gpu_power_management_limit': 340000,
-                'gpu_temperature_shutdown': 98,
-                'gpu_temperature_slowdown': 95,
-                'gpu_enforced_power_limit': 340000,
-                'gpu_max_clock_info_graphics': 2100,
-                'gpu_max_clock_info_sm': 2100,
-                'gpu_max_clock_info_mem': 9501,
-                'gpu_max_clock_info_video': 1950,
-                'gpu_memory_info_total': 10737418240,
-                'gpu_bar1_memory_info_total': 268435456
+                "used_port": self.used_port_objects[0],
+                "gpu_index": 0,
+                "gpu_name": b"NVIDIA GeForce RTX 3080",
+                "gpu_brand": b"Geforce",
+                "gpu_nvml_version": b"11.515.766.02",
+                "gpu_driver_version": b"517.48",
+                "gpu_vbios_version": b"94.02.26.08.34",
+                "gpu_multi_gpu_board": False,
+                "gpu_display_mode": True,
+                "gpu_display_active": True,
+                "gpu_persistence_mode": True,
+                "gpu_compute_mode": b"DEFAULT",
+                "gpu_power_management_mode": True,
+                "gpu_power_management_limit": 340000,
+                "gpu_temperature_shutdown": 98,
+                "gpu_temperature_slowdown": 95,
+                "gpu_enforced_power_limit": 340000,
+                "gpu_max_clock_info_graphics": 2100,
+                "gpu_max_clock_info_sm": 2100,
+                "gpu_max_clock_info_mem": 9501,
+                "gpu_max_clock_info_video": 1950,
+                "gpu_memory_info_total": 10737418240,
+                "gpu_bar1_memory_info_total": 268435456
             }
         ]
         self.gpu_spec_objects = self.__create_objects_in_model(GPUSpec, data_list)
@@ -153,22 +154,22 @@ class ReverseSSHAPITestCase(APITestCase):
         # Setup GPU Stat
         data_list = [
             {
-                'gpu_spec': self.gpu_spec_objects[0],
-                'gpu_power_usage': 25696,
-                'gpu_temperature': 31,
-                'gpu_fan_speed': 0,
-                'gpu_clock_info_graphics': 145,
-                'gpu_clock_info_sm': 145,
-                'gpu_clock_info_mem': 254,
-                'gpu_clock_info_video': 555,
-                'gpu_memory_info_free': 9507532800,
-                'gpu_memory_info_used': 1229885440,
-                'gpu_bar1_memory_info_free': 267386880,
-                'gpu_bar1_memory_info_used': 1048576,
-                'gpu_utilization_gpu': 5,
-                'gpu_utilization_memory': 15,
-                'gpu_utilization_encoder': 0,
-                'gpu_utilization_decoder': 0,
+                "gpu_spec": self.gpu_spec_objects[0],
+                "gpu_power_usage": 25696,
+                "gpu_temperature": 31,
+                "gpu_fan_speed": 0,
+                "gpu_clock_info_graphics": 145,
+                "gpu_clock_info_sm": 145,
+                "gpu_clock_info_mem": 254,
+                "gpu_clock_info_video": 555,
+                "gpu_memory_info_free": 9507532800,
+                "gpu_memory_info_used": 1229885440,
+                "gpu_bar1_memory_info_free": 267386880,
+                "gpu_bar1_memory_info_used": 1048576,
+                "gpu_utilization_gpu": 5,
+                "gpu_utilization_memory": 15,
+                "gpu_utilization_encoder": 0,
+                "gpu_utilization_decoder": 0,
             }
         ]
         self.gpu_stat_objects = self.__create_objects_in_model(GPUStat, data_list)
@@ -185,26 +186,26 @@ class ReverseSSHAPITestCase(APITestCase):
         self.gpu_stat_objects = GPUStat.objects.count()
 
         # Setup urls
-        self.reserved_port_url = '/api/reserved-port/'
-        self.used_port_url = '/api/used-port/'
-        self.free_port_url = '/api/free-port/'
-        self.cpu_spec_url = '/api/cpu-spec/'
-        self.cpu_stat_url = '/api/cpu-stat/'
-        self.memory_spec_url = '/api/memory-spec/'
-        self.memory_stat_url = '/api/memory-stat/'
-        self.gpu_spec_url = '/api/gpu-spec/'
-        self.gpu_stat_url = '/api/gpu-stat/'
+        self.reserved_port_url = "/api/reserved-port/"
+        self.used_port_url = "/api/used-port/"
+        self.free_port_url = "/api/free-port/"
+        self.cpu_spec_url = "/api/cpu-spec/"
+        self.cpu_stat_url = "/api/cpu-stat/"
+        self.memory_spec_url = "/api/memory-spec/"
+        self.memory_stat_url = "/api/memory-stat/"
+        self.gpu_spec_url = "/api/gpu-spec/"
+        self.gpu_stat_url = "/api/gpu-stat/"
 
         # Setup format
-        self.format = 'json'
+        self.format = "json"
 
         # Setup Data
-        self.url = ''
+        self.url = ""
         self.data = {
-            'superuser1': [],
-            'superuser2': [],
-            'user1': [],
-            'user2': []
+            "superuser1": [],
+            "superuser2": [],
+            "user1": [],
+            "user2": []
         }
         self.model = Model
         self.count = 0
@@ -224,8 +225,8 @@ class ReverseSSHAPITestCase(APITestCase):
     ) -> dict:
         model = self.model
         expected_data = data.copy()
-        if model._meta.pk.name == 'id':
-            expected_data['id'] = model.objects.count() + 1
+        if model._meta.pk.name == "id":
+            expected_data["id"] = model.objects.count() + 1
         return expected_data
 
     # ==============================================================================
@@ -234,7 +235,7 @@ class ReverseSSHAPITestCase(APITestCase):
             self,
             url: str = None,
             request_token: str = None,
-            format: str = 'json'
+            format: str = "json"
     ) -> Response:
         self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.get(
@@ -247,7 +248,7 @@ class ReverseSSHAPITestCase(APITestCase):
             url: str = None,
             request_data: dict = None,
             request_token: str = None,
-            format: str = 'json'
+            format: str = "json"
     ) -> Response:
         self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.post(
@@ -260,7 +261,7 @@ class ReverseSSHAPITestCase(APITestCase):
             self,
             url: str = None,
             request_token: str = None,
-            format: str = 'json'
+            format: str = "json"
     ) -> Response:
         self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.delete(
@@ -273,7 +274,7 @@ class ReverseSSHAPITestCase(APITestCase):
             url: str = None,
             request_data: dict = None,
             request_token: str = None,
-            format: str = 'json'
+            format: str = "json"
     ) -> Response:
         self.client.credentials(HTTP_AUTHORIZATION=request_token)
         response = self.client.put(
@@ -334,13 +335,13 @@ class ReverseSSHAPITestCase(APITestCase):
             url = self.url
 
         if request_id is not None:
-            url = f'{url}{request_id}/'
+            url = f"{url}{request_id}/"
 
         tmp_request_token = request_token
         if request_token is not None:
-            request_token = 'Token ' + self.token[request_token].key
+            request_token = "Token " + self.token[request_token].key
         else:
-            request_token = ''
+            request_token = ""
 
         if expected_status_code == HTTP_200_OK:
             expected_data = self.data[tmp_request_token]
@@ -502,16 +503,16 @@ class ReverseSSHAPITestCase(APITestCase):
         )
 
     def _test(self, method: str, data: Dict[str, object]) -> None:
-        if method == 'GET':
+        if method == "GET":
             self._test_get(**data)
-        elif method == 'POST':
+        elif method == "POST":
             self._test_post(**data)
-        elif method == 'DELETE':
+        elif method == "DELETE":
             self._test_delete(**data)
-        elif method == 'UPDATE':
+        elif method == "UPDATE":
             self._test_update(**data)
         else:
-            self.fail('테스트 케이스 오류')
+            self.fail("테스트 케이스 오류")
 
     # ==============================================================================
 
@@ -528,7 +529,7 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
 
         self.url = self.reserved_port_url
         for i in [0, 1, 2, 3, 4]:
-            self.data['superuser1'].append(model_to_dict(self.reserved_port_objects[i]))
+            self.data["superuser1"].append(model_to_dict(self.reserved_port_objects[i]))
         self.model = ReservedPort
         self.count = self.reserved_port_count
 
@@ -539,103 +540,120 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     @parameterized.expand([
         # ====================================================================================================
         # Superuser
-        ('allow superuser to GET', 'GET', {
-            'request_token': 'superuser1',
-            'expected_status_code': HTTP_200_OK}),
-        ('allow superuser to POST', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 10005},
-            'expected_status_code': HTTP_201_CREATED}),
-        ('allow superuser to DELETE', 'DELETE', {
-            'request_id': 10000,
-            'request_token': 'superuser1',
-            'expected_status_code': HTTP_204_NO_CONTENT}),
-        ('allow superuser to UPDATE', 'UPDATE', {
-            'request_id': 10000,
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 10005},
-            'expected_status_code': HTTP_405_METHOD_NOT_ALLOWED,
-            'expected_error_code': {'detail': 'method_not_allowed'}}),
+        # - GET
+        ("allow superuser to GET", "GET", {
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("allow superuser to POST", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_201_CREATED}),
+        # - DELETE
+        ("allow superuser to DELETE", "DELETE", {
+            "request_id": 10000,
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_204_NO_CONTENT}),
+        # - UPDATE
+        ("deny superuser to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
         # ====================================================================================================
         # User
-        ('deny user to GET', 'GET', {
-            'request_token': 'user1',
-            'expected_status_code': HTTP_403_FORBIDDEN,
-            'expected_error_code': {'detail': 'permission_denied'}}),
-        ('deny user to POST', 'POST', {
-            'request_token': 'user1',
-            'request_data': {'reserved_port': 10005},
-            'expected_status_code': HTTP_403_FORBIDDEN,
-            'expected_error_code': {'detail': 'permission_denied'}}),
-        ('deny user to DELETE', 'DELETE', {
-            'request_id': 10000,
-            'request_token': 'user1',
-            'expected_status_code': HTTP_403_FORBIDDEN,
-            'expected_error_code': {'detail': 'permission_denied'}}),
-        ('deny user to UPDATE', 'UPDATE', {
-            'request_id': 10000,
-            'request_token': 'user1',
-            'request_data': {'reserved_port': 10005},
-            'expected_status_code': HTTP_403_FORBIDDEN,
-            'expected_error_code': {'detail': 'permission_denied'}}),
+        # - GET
+        ("deny user to GET", "GET", {
+            "request_token": "user1",
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
+        # - POST
+        ("deny user to POST", "POST", {
+            "request_token": "user1",
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
+        # - DELETE
+        ("deny user to DELETE", "DELETE", {
+            "request_id": 10000,
+            "request_token": "user1",
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
+        # - UPDATE
+        ("deny user to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_token": "user1",
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
         # ====================================================================================================
         # Anonymous
-        ('deny anonymous to GET', 'GET', {
-            'expected_status_code': HTTP_401_UNAUTHORIZED,
-            'expected_error_code': {'detail': 'not_authenticated'}}),
-        ('deny anonymous to POST', 'POST', {
-            'request_data': {'reserved_port': 10005},
-            'expected_status_code': HTTP_401_UNAUTHORIZED,
-            'expected_error_code': {'detail': 'not_authenticated'}}),
-        ('deny anonymous to DELETE', 'DELETE', {
-            'request_id': 10000,
-            'expected_status_code': HTTP_401_UNAUTHORIZED,
-            'expected_error_code': {'detail': 'not_authenticated'}}),
-        ('deny anonymous to UPDATE', 'UPDATE', {
-            'request_id': 10000,
-            'request_data': {'reserved_port': 10005},
-            'expected_status_code': HTTP_401_UNAUTHORIZED,
-            'expected_error_code': {'detail': 'not_authenticated'}}),
+        # - GET
+        ("deny anonymous to GET", "GET", {
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - POST
+        ("deny anonymous to POST", "POST", {
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - DELETE
+        ("deny anonymous to DELETE", "DELETE", {
+            "request_id": 10000,
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - UPDATE
+        ("deny anonymous to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
         # ====================================================================================================
     ])
-    def test_authentication(self, _: str, method: str, data: Dict[str, object]):
+    def test_authentication(self, _: str, method: str, data: Dict[str, object]) -> None:
         self._test(method=method, data=data)
 
     # ====================================================================================================
     # Syntax Tests
     # - reserved_port
     #   - It's not already used
-    #   - It's an integer (not string, float, etc.)
+    #   - It's an integer (not string, float, none etc.)
     #   - It's not null
     # ====================================================================================================
     @parameterized.expand([
         # ====================================================================================================
         # reserved_port
-        ('deny superuser to POST with reserved_port already used', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 10000},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['unique']}}),
-        ('deny superuser to POST with reserved_port string type', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 'test'},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['invalid']}}),
-        ('deny superuser to POST with reserved_port float type', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 1024.5},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['invalid']}}),
-        ('deny superuser to POST with reserved_port none', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': None},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['null']}}),
-        ('deny superuser to POST with reserved_port null', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['required']}}),
+        # - already used
+        ("deny superuser to POST with reserved_port already used", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 10000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["unique"]}}),
+        # - string type
+        ("deny superuser to POST with reserved_port of string type", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": "test"},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["invalid"]}}),
+        # - float type
+        ("deny superuser to POST with reserved_port of float type", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 1024.5},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["invalid"]}}),
+        # - none
+        ("deny superuser to POST with reserved_port of none", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": None},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["null"]}}),
+        # - null
+        ("deny superuser to POST without reserved_port", "POST", {
+            "request_token": "superuser1",
+            "request_data": {},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["required"]}}),
         # ====================================================================================================
     ])
     def test_syntax(self, _: str, method: str, data: Dict[str, object]) -> None:
@@ -648,32 +666,34 @@ class ReservedPortTestCase(ReverseSSHAPITestCase):
     @parameterized.expand([
         # ====================================================================================================
         # reserved_port
-        ('deny superuser to POST with reserved_port less than min value, 1023', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 1023},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['min_value']}}),
-        ('allow superuser to POST with reserved_port equal to min value, 1024', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 1024},
-            'expected_status_code': HTTP_201_CREATED}),
-        ('allow superuser to POST with reserved_port greater than min value, 1025', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 1025},
-            'expected_status_code': HTTP_201_CREATED}),
-        ('allow superuser to POST with reserved_port less than max value, 65534', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 65534},
-            'expected_status_code': HTTP_201_CREATED}),
-        ('allow superuser to POST with reserved_port equal to max value, 65535', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 65535},
-            'expected_status_code': HTTP_201_CREATED}),
-        ('deny superuser to POST with reserved_port greater than max value, 65536', 'POST', {
-            'request_token': 'superuser1',
-            'request_data': {'reserved_port': 65536},
-            'expected_status_code': HTTP_400_BAD_REQUEST,
-            'expected_error_code': {'reserved_port': ['max_value']}}),
+        # - min_value
+        ("deny superuser to POST with reserved_port less than min value, 1023", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 1023},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["min_value"]}}),
+        ("allow superuser to POST with reserved_port equal to min value, 1024", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 1024},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("allow superuser to POST with reserved_port greater than min value, 1025", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 1025},
+            "expected_status_code": HTTP_201_CREATED}),
+        # - max_value
+        ("allow superuser to POST with reserved_port less than max value, 65534", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 65534},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("allow superuser to POST with reserved_port equal to max value, 65535", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 65535},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("deny superuser to POST with reserved_port greater than max value, 65536", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"reserved_port": 65536},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"reserved_port": ["max_value"]}}),
         # ====================================================================================================
     ])
     def test_boundary(self, _: str, method: str, data: Dict[str, object]) -> None:
@@ -694,9 +714,9 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
 
         self.url = self.used_port_url
         for i in [0, 1, 2, 3]:
-            self.data['superuser1'].append(UsedPortAdminSerializer(self.used_port_objects[i]).data)
+            self.data["superuser1"].append(UsedPortAdminSerializer(self.used_port_objects[i]).data)
         for i in [2, 3]:
-            self.data['user1'].append(UsedPortSerializer(self.used_port_objects[i]).data)
+            self.data["user1"].append(UsedPortSerializer(self.used_port_objects[i]).data)
         self.model = UsedPort
         self.count = self.used_port_count
 
@@ -705,191 +725,152 @@ class UsedPortTestCase(ReverseSSHAPITestCase):
     # - Superuser can get, post, and delete all UsedPort
     # - User can get, post, and delete own UsedPort
     # ====================================================================================================
-    # Superuser
-    def test_superuser_get_UsedPort(self):
-        self._test_get(
-            request_token='superuser1',
-            expected_status_code=HTTP_200_OK
-        )
-
-    def test_superuser_post_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_post(
-            request_data=data,
-            request_token='superuser1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_delete_own_UsedPort(self):
-        self._test_delete(
-            request_id=10000,
-            request_token='superuser1',
-            expected_status_code=HTTP_204_NO_CONTENT
-        )
-
-    def test_superuser_delete_other_user_UsedPort(self):
-        self._test_delete(
-            request_id=10000,
-            request_token='superuser2',
-            expected_status_code=HTTP_204_NO_CONTENT
-        )
-
-    def test_superuser_fail_to_update_own_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_update(
-            request_id=10000,
-            request_data=data,
-            request_token='superuser1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_superuser_fail_to_update_other_user_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_update(
-            request_id=10000,
-            request_data=data,
-            request_token='superuser2',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    # ====================================================================================================
-    # User
-    def test_user_get_UsedPort(self):
-        self._test_get(
-            request_token='user1',
-            expected_status_code=HTTP_200_OK,
-        )
-
-    def test_user_post_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_delete_own_UsedPort(self):
-        self._test_delete(
-            request_id=10002,
-            request_token='user1',
-            expected_status_code=HTTP_204_NO_CONTENT
-        )
-
-    def test_user_fail_to_delete_other_UsedPort(self):
-        self._test_delete(
-            request_id=10002,
-            request_token='user2',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    def test_user_fail_to_update_own_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_update(
-            request_id=10002,
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_user_fail_to_update_other_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_update(
-            request_id=10002,
-            request_data=data,
-            request_token='user2',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    # ====================================================================================================
-    # Anonymous
-    def test_anonymous_fail_to_get_UsedPort(self):
-        self._test_get(
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_post_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_post(
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_delete_UsedPort(self):
-        self._test_delete(
-            request_id=10000,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_update_UsedPort(self):
-        data = {'used_port': 10004}
-        self._test_update(
-            request_id=10000,
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # Superuser
+        # - GET
+        ("allow superuser to GET", "GET", {
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("allow superuser to POST", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_201_CREATED}),
+        # - DELETE
+        ("allow superuser to DELETE own", "DELETE", {
+            "request_id": 10000,
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_204_NO_CONTENT}),
+        ("allow other superuser to DELETE other's", "DELETE", {
+            "request_id": 10000,
+            "request_token": "superuser2",
+            "expected_status_code": HTTP_204_NO_CONTENT}),
+        # - UPDATE
+        ("deny superuser to UPDATE own", "UPDATE", {
+            "request_id": 10000,
+            "request_token": "superuser1",
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        ("deny other superuser to UPDATE other's", "UPDATE", {
+            "request_id": 10000,
+            "request_token": "superuser2",
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # ====================================================================================================
+        # User
+        # - GET
+        ("allow user to GET", "GET", {
+            "request_token": "user1",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("allow user to POST", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_201_CREATED}),
+        # - DELETE
+        ("allow user to DELETE own", "DELETE", {
+            "request_id": 10002,
+            "request_token": "user1",
+            "expected_status_code": HTTP_204_NO_CONTENT}),
+        ("deny other user to DELETE other's", "DELETE", {
+            "request_id": 10002,
+            "request_token": "user2",
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
+        # - UPDATE
+        ("deny user to UPDATE own", "UPDATE", {
+            "request_id": 10002,
+            "request_token": "user1",
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        ("deny other user to UPDATE other's", "UPDATE", {
+            "request_id": 10002,
+            "request_token": "user2",
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
+        # ====================================================================================================
+        # Anonymous
+        # - GET
+        ("deny anonymous to GET", "GET", {
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - POST
+        ("deny anonymous to POST", "POST", {
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - DELETE
+        ("deny anonymous to DELETE", "DELETE", {
+            "request_id": 10000,
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - UPDATE
+        ("deny anonymous to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_data": {"used_port": 10004},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # ====================================================================================================
+    ])
+    def test_authentication(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
     # Syntax Tests
     # - used_port
     #   - It's in reserved_port
     #   - It's not used
-    #   - It's an integer (not char, float, etc.)
+    #   - It's an integer (not string, float, none etc.)
     #   - It's not null
     # ====================================================================================================
-    # used_port
-    def test_user_fail_to_post_UsedPort_with_used_port_not_in_ReservedPort(self):
-        data = {'used_port': 10005}
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['does_not_exist']}
-        )
-
-    def test_user_fail_to_post_UsedPort_with_used_port_already_used(self):
-        data = {'used_port': 10002}
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['unique']}
-        )
-
-    def test_user_fail_to_post_UsedPort_with_used_port_string(self):
-        data = {'used_port': 'test'}
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['invalid']}
-        )
-
-    def test_user_fail_to_post_UsedPort_with_used_port_float(self):
-        data = {'used_port': 10003.5}
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['invalid']}
-        )
-
-    def test_user_fail_to_post_UsedPort_with_used_port_none(self):
-        data = {}
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['required']}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # used_port
+        # - not in reserved_port
+        ("deny user to POST with used_port not in reserved_port", "POST", {
+            "request_token": "user1",
+            "request_data": {"used_port": 9999},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["does_not_exist"]}}),
+        # - already used
+        ("deny user to POST with used_port already used", "POST", {
+            "request_token": "user1",
+            "request_data": {"used_port": 10000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["unique"]}}),
+        # - string type
+        ("deny user to POST with used_port of string type", "POST", {
+            "request_token": "user1",
+            "request_data": {"used_port": "test"},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["invalid"]}}),
+        # - float type
+        ("deny user to POST with used_port of float type", "POST", {
+            "request_token": "user1",
+            "request_data": {"used_port": 10004.1},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["invalid"]}}),
+        # - none
+        ("deny user to POST with used_port of none", "POST", {
+            "request_token": "user1",
+            "request_data": {"used_port": None},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["invalid"]}}),
+        # null
+        ("deny user to POST without used_port", "POST", {
+            "request_token": "user1",
+            "request_data": {},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["required"]}}),
+        # ====================================================================================================
+    ])
+    def test_syntax(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
 
@@ -903,8 +884,9 @@ class FreePortTestCase(ReverseSSHAPITestCase):
         super().setUp()
 
         self.url = self.free_port_url
-        self.data['superuser1'].append(model_to_dict(self.reserved_port_objects[4]))
-        self.data['user1'].append(model_to_dict(self.reserved_port_objects[4]))
+        data = map_dictionary_keys(model_to_dict(self.reserved_port_objects[4]), {"reserved_port": "free_port"})
+        self.data["superuser1"].append(data)
+        self.data["user1"].append(data)
         self.model = ReservedPort
         self.count = self.reserved_port_count
 
@@ -913,106 +895,83 @@ class FreePortTestCase(ReverseSSHAPITestCase):
     # - Superuser can get free ports
     # - User can get free ports
     # ====================================================================================================
-    # Superuser
-    def test_superuser_get_FreePort(self):
-        self._test_get(
-            request_token='superuser1',
-            expected_status_code=HTTP_200_OK
-        )
-
-    def test_superuser_fail_to_post_FreePort(self):
-        data = {'free_port': 10005}
-        self._test_post(
-            request_token='superuser1',
-            request_data=data,
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_superuser_fail_to_delete_FreePort(self):
-        self._test_delete(
-            request_id=10004,
-            request_token='superuser1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_superuser_fail_to_update_FreePort(self):
-        data = {'reserved_port': 10005}
-        self._test_update(
-            request_id=10004,
-            request_data=data,
-            request_token='superuser1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    # ====================================================================================================
-    # User
-    def test_user_to_get_FreePort(self):
-        self._test_get(
-            request_token='user1',
-            expected_status_code=HTTP_200_OK
-        )
-
-    def test_user_fail_to_post_FreePort(self):
-        data = {'reserved_port': 10005}
-        self._test_post(
-            request_token='user1',
-            request_data=data,
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_user_fail_to_delete_FreePort(self):
-        self._test_delete(
-            request_id=10004,
-            request_token='user1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_user_fail_to_update_FreePort(self):
-        data = {'reserved_port': 10005}
-        self._test_update(
-            request_id=10004,
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    # ====================================================================================================
-    # Anonymous
-    def test_anonymous_fail_to_get_FreePort(self):
-        self._test_get(
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_post_FreePort(self):
-        data = {'reserved_port': 10003}
-        self._test_post(
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_delete_FreePort(self):
-        self._test_delete(
-            request_id=10000,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_update_FreePort(self):
-        data = {'reserved_port': 10003}
-        self._test_update(
-            request_id=10000,
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # Superuser
+        # - GET
+        ("allow superuser to GET", "GET", {
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("deny superuser to POST", "POST", {
+            "request_token": "superuser1",
+            "request_data": {"free_port": 10005},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # - DELETE
+        ("deny superuser to DELETE", "DELETE", {
+            "request_id": 10000,
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # - UPDATE
+        ("deny superuser to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_token": "superuser1",
+            "request_data": {"free_port": 10005},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # ====================================================================================================
+        # User
+        # - GET
+        ("allow user to GET", "GET", {
+            "request_token": "user1",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("deny user to POST", "POST", {
+            "request_token": "user1",
+            "request_data": {"free_port": 10005},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # - DELETE
+        ("deny user to DELETE", "DELETE", {
+            "request_id": 10000,
+            "request_token": "user1",
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # - UPDATE
+        ("deny user to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_token": "user1",
+            "request_data": {"free_port": 10005},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # ====================================================================================================
+        # Anonymous
+        # - GET
+        ("deny anonymous to GET", "GET", {
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - POST
+        ("deny anonymous to POST", "POST", {
+            "request_data": {"free_port": 10005},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - DELETE
+        ("deny anonymous to DELETE", "DELETE", {
+            "request_id": 10000,
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - UPDATE
+        ("deny anonymous to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_data": {"free_port": 10005},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # ====================================================================================================
+    ])
+    def test_authentication(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
 
@@ -1027,9 +986,11 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
         super().setUp()
 
         self.url = self.cpu_spec_url
-        self.data['superuser1'].append(model_to_dict(self.cpu_spec_objects[0]))
-        self.data['superuser1'].append(model_to_dict(self.cpu_spec_objects[1]))
-        self.data['user1'].append(model_to_dict(self.cpu_spec_objects[1]))
+        self.data["superuser1"].append(model_to_dict(self.cpu_spec_objects[0]))
+        self.data["superuser1"].append(model_to_dict(self.cpu_spec_objects[1]))
+        self.data["superuser2"].append(model_to_dict(self.cpu_spec_objects[0]))
+        self.data["superuser2"].append(model_to_dict(self.cpu_spec_objects[1]))
+        self.data["user1"].append(model_to_dict(self.cpu_spec_objects[1]))
         self.model = CPUSpec
         self.count = self.cpu_spec_count
 
@@ -1038,480 +999,422 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # - Superuser can get and post all cpu spec
     # - User can get and post their own cpu spec
     # ====================================================================================================
-    # Superuser
-    def test_superuser_get_CPUSpec(self):
-        self._test_get(
-            request_token='superuser1',
-            expected_status_code=HTTP_200_OK
-        )
-
-    def test_superuser_post_CPUSpec(self):
-        data = {
-            'used_port': 10001,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_token='superuser1',
-            request_data=data,
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_superuser_fail_to_delete_own_CPUSpec(self):
-        self._test_delete(
-            request_id=1,
-            request_token='superuser1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_superuser_fail_to_delete_other_CPUSpec(self):
-        self._test_delete(
-            request_id=1,
-            request_token='superuser2',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_superuser_fail_to_update_own_CPUSpec(self):
-        data = {
-            'used_port': 10000,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_update(
-            request_id=1,
-            request_data=data,
-            request_token='superuser1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_superuser_fail_to_update_other_CPUSpec(self):
-        data = {
-            'used_port': 10002,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_update(
-            request_id=1,
-            request_data=data,
-            request_token='superuser2',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    # ====================================================================================================
-    # User
-    def test_user_get_CPUSpec(self):
-        self._test_get(
-            request_token='user1',
-            expected_status_code=HTTP_200_OK
-        )
-
-    def test_user_post_CPUSpec(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'X86_64',
-            'cpu_bits': 64,
-            'cpu_count': 16,
-            'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel',
-            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_fail_to_delete_own_CPUSpec(self):
-        self._test_delete(
-            request_id=2,
-            request_token='user1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_user_fail_to_delete_other_CPUSpec(self):
-        self._test_delete(
-            request_id=2,
-            request_token='user2',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    def test_user_fail_to_update_own_CPUSpec(self):
-        data = {
-            'used_port': 10002,
-            'cpu_arch': 'X86_64',
-            'cpu_bits': 64,
-            'cpu_count': 16,
-            'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel',
-            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000
-        }
-        self._test_update(
-            request_id=2,
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_405_METHOD_NOT_ALLOWED,
-            expected_error_code={'detail': 'method_not_allowed'}
-        )
-
-    def test_user_fail_to_update_other_CPUSpec(self):
-        data = {
-            'used_port': 10002,
-            'cpu_arch': 'X86_64',
-            'cpu_bits': 64,
-            'cpu_count': 16,
-            'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel',
-            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000
-        }
-        self._test_update(
-            request_id=2,
-            request_data=data,
-            request_token='user2',
-            expected_status_code=HTTP_403_FORBIDDEN,
-            expected_error_code={'detail': 'permission_denied'}
-        )
-
-    # ====================================================================================================
-    # Anonymous
-    def test_anonymous_fail_to_get_CPUSpec(self):
-        self._test_get(
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_post_CPUSpec(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'X86_64',
-            'cpu_bits': 64,
-            'cpu_count': 16,
-            'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel',
-            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000
-        }
-        self._test_post(
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_delete_CPUSpec(self):
-        self._test_delete(
-            request_id=2,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
-
-    def test_anonymous_fail_to_update_CPUSpec(self):
-        data = {
-            'used_port': 10002,
-            'cpu_arch': 'X86_64',
-            'cpu_bits': 64,
-            'cpu_count': 16,
-            'cpu_arch_string_raw': 'x86_64',
-            'cpu_vendor_id_raw': 'GenuineIntel',
-            'cpu_brand_raw': 'Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz',
-            'cpu_hz_actual_friendly': 2903998000
-        }
-        self._test_update(
-            request_id=2,
-            request_data=data,
-            expected_status_code=HTTP_401_UNAUTHORIZED,
-            expected_error_code={'detail': 'not_authenticated'}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # Superuser
+        # - GET
+        ("allow superuser to GET all", "GET", {
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_200_OK}),
+        ("allow other superuser to GET all", "GET", {
+            "request_token": "superuser2",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("allow superuser to POST with own used_port", "POST", {
+            "request_token": "superuser1",
+            "request_data": {
+                "used_port": 10001,
+                "cpu_arch": "ARM_8",
+                "cpu_bits": 64,
+                "cpu_count": 4,
+                "cpu_arch_string_raw": "aarch64",
+                "cpu_vendor_id_raw": "ARM",
+                "cpu_brand_raw": "Cortex-A72",
+                "cpu_hz_actual_friendly": 1800000000},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("allow other superuser to POST with any used_port", "POST", {
+            "request_token": "superuser2",
+            "request_data": {
+                "used_port": 10001,
+                "cpu_arch": "ARM_8",
+                "cpu_bits": 64,
+                "cpu_count": 4,
+                "cpu_arch_string_raw": "aarch64",
+                "cpu_vendor_id_raw": "ARM",
+                "cpu_brand_raw": "Cortex-A72",
+                "cpu_hz_actual_friendly": 1800000000},
+            "expected_status_code": HTTP_201_CREATED}),
+        # - DELETE
+        ("deny superuser to DELETE", "DELETE", {
+            "request_id": 1,
+            "request_token": "superuser1",
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # - UPDATE
+        ("allow superuser to UPDATE", "UPDATE", {
+            "request_id": 1,
+            "request_token": "superuser1",
+            "request_data": {
+                "used_port": 10000,
+                "cpu_arch": "ARM_8",
+                "cpu_bits": 64,
+                "cpu_count": 4,
+                "cpu_arch_string_raw": "aarch64",
+                "cpu_vendor_id_raw": "ARM",
+                "cpu_brand_raw": "Cortex-A72",
+                "cpu_hz_actual_friendly": 1800000000},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # ====================================================================================================
+        # User
+        # - GET
+        ("allow user to GET with own used_port", "GET", {
+            "request_token": "user1",
+            "expected_status_code": HTTP_200_OK}),
+        ("deny other user to GET with other's used_port", "GET", {
+            "request_token": "user2",
+            "expected_status_code": HTTP_200_OK}),
+        # - POST
+        ("allow user to POST with own used_port", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("deny other user to POST with other's used_port", "POST", {
+            "request_token": "user2",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_403_FORBIDDEN,
+            "expected_error_code": {"detail": "permission_denied"}}),
+        # - DELETE
+        ("deny user to DELETE", "DELETE", {
+            "request_id": 2,
+            "request_token": "user1",
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # - UPDATE
+        ("deny user to UPDATE", "UPDATE", {
+            "request_id": 2,
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10002,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_405_METHOD_NOT_ALLOWED,
+            "expected_error_code": {"detail": "method_not_allowed"}}),
+        # ====================================================================================================
+        # Anonymous
+        # - GET
+        ("deny anonymous to GET", "GET", {
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - POST
+        ("deny anonymous to POST", "POST", {
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - DELETE
+        ("deny anonymous to DELETE", "DELETE", {
+            "request_id": 10000,
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # - UPDATE
+        ("deny anonymous to UPDATE", "UPDATE", {
+            "request_id": 10000,
+            "request_data": {"reserved_port": 10005},
+            "expected_status_code": HTTP_401_UNAUTHORIZED,
+            "expected_error_code": {"detail": "not_authenticated"}}),
+        # ====================================================================================================
+    ])
+    def test_authentication(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
     # Syntax Tests
     # - used_port
     #   - It's in UsedPort
-    #   - It's not used
-    #   - It's an integer (not char, float, and etc.)
+    #   - It's not already used
+    #   - It's an integer (not string, float, none and etc.)
+    #   - It's not null
     # - cpu_bits
-    #   - It's an integer (not char, float, and etc.)
+    #   - It's an integer (not string, float, none and etc.)
+    #   - It's not null
     # - cpu_count
-    #   - It's an integer (not char, float, and etc.)
+    #   - It's an integer (not string, float, none and etc.)
+    #   - It's not null
     # - cpu_hz_actual_friendly
-    #   - It's an integer (not char, float, and etc.)
+    #   - It's an integer (not string, float, none and etc.)
+    #   - It's not null
     # ====================================================================================================
-    # used_port
-    def test_user_fail_to_create_CPUSpec_with_used_port_not_in_UsedPort(self):
-        data = {
-            'used_port': 9999,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_used_port_already_in_use(self):
-        data = {
-            'used_port': 10002,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['unique']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_used_port_string(self):
-        data = {
-            'used_port': 'test',
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_used_port_float(self):
-        data = {
-            'used_port': 10002.5,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_used_port_none(self):
-        data = {
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'used_port': ['required']}
-        )
-
-    # ====================================================================================================
-    # cpu_bits
-    def test_user_fail_to_create_CPUSpec_with_cpu_bits_string(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 'test',
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_bits': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_bits_float(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 32.5,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_bits': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_bits_none(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_bits': ['required']}
-        )
-
-    # ====================================================================================================
-    # cpu_count
-    def test_user_fail_to_create_CPUSpec_with_cpu_count_string(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 'test',
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_count': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_count_float(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4.5,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_count': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_count_none(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_count': ['required']}
-        )
-
-    # ====================================================================================================
-    # cpu_hz_actual_friendly
-    def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_string(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 'test'
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_hz_actual_friendly': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_float(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000.5
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_hz_actual_friendly': ['invalid']}
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_none(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72'
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_hz_actual_friendly': ['required']}
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # used_port
+        # - not in UsedPort
+        ("deny user to POST with used_port not in UsedPort", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 9999,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["does_not_exist"]}}),
+        # - already used
+        ("deny user to POST with used_port already used", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10002,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["unique"]}}),
+        # - string type
+        ("deny user to POST with used_port of string type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": "test",
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["invalid"]}}),
+        # - float type
+        ("deny user to POST with used_port of float type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003.1,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["invalid"]}}),
+        # - none
+        ("deny user to POST with used_port of none", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": None,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["null"]}}),
+        # - null
+        ("deny user to POST without used_port", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"used_port": ["required"]}}),
+        # ====================================================================================================
+        # cpu_bits
+        # - string type
+        ("deny user to POST with cpu_bits of string type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": "test",
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_bits": ["invalid"]}}),
+        # - float type
+        ("deny user to POST with cpu_bits of float type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64.1,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_bits": ["invalid"]}}),
+        # - none
+        ("deny user to POST with cpu_bits of none", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": None,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_bits": ["null"]}}),
+        ("deny user to POST without cpu_bits", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_bits": ["required"]}}),
+        # ====================================================================================================
+        # cpu_count
+        # - string type
+        ("deny user to POST without cpu_count of string type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": "test",
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_count": ["invalid"]}}),
+        # - float type
+        ("deny user to POST without cpu_count of float type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16.1,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_count": ["invalid"]}}),
+        # - none
+        ("deny user to POST with cpu_count of none", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": None,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_count": ["null"]}}),
+        # - null
+        ("deny user to POST without cpu_count", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_count": ["required"]}}),
+        # ====================================================================================================
+        # cpu_hz_actual_friendly
+        # - string type
+        ("deny user to POST with cpu_count of string type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": "test"},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_hz_actual_friendly": ["invalid"]}}),
+        # - float type
+        ("deny user to POST with cpu_count of float type", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000.1},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_hz_actual_friendly": ["invalid"]}}),
+        # - none
+        ("deny user to POST with cpu_count of none", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": None},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_hz_actual_friendly": ["null"]}}),
+        # - null
+        ("deny user to POST with cpu_count of none", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz"},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_hz_actual_friendly": ["required"]}}),
+        # ====================================================================================================
+    ])
+    def test_syntax(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
     # Boundary Tests
@@ -1519,184 +1422,145 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
     # - cpu_count must be between 1 and 128
     # - cpu_hz_actual_friendly must be equal to or greater than 0
     # ====================================================================================================
-    # cpu_bits
-    def test_user_fail_to_create_CPUSpec_with_cpu_bits_equal_to_128(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 128,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_bits': ['value_not_in_list']}
-        )
-
-    # ====================================================================================================
-    # cpu_count
-    def test_user_fail_to_create_CPUSpec_with_cpu_count_less_than_1(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 0,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_count': ['min_value']}
-        )
-
-    def test_user_create_CPUSpec_with_cpu_count_equal_to_1(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 1,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_create_CPUSpec_with_cpu_count_greater_than_1(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 2,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_create_CPUSpec_with_cpu_count_less_than_128(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 127,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_create_CPUSpec_with_cpu_count_equal_to_128(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 128,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_fail_to_create_CPUSpec_with_cpu_count_greater_than_128(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 129,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1800000000
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_count': ['max_value']}
-        )
-
-    # ====================================================================================================
-    # cpu_hz_actual_friendly
-    def test_user_fail_to_create_CPUSpec_with_cpu_hz_actual_friendly_less_than_0(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': -1
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_400_BAD_REQUEST,
-            expected_error_code={'cpu_hz_actual_friendly': ['min_value']}
-        )
-
-    def test_user_create_CPUSpec_with_cpu_hz_actual_friendly_equal_to_0(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 0
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
-
-    def test_user_create_CPUSpec_with_cpu_hz_actual_friendly_greater_than_0(self):
-        data = {
-            'used_port': 10003,
-            'cpu_arch': 'ARM_8',
-            'cpu_bits': 64,
-            'cpu_count': 4,
-            'cpu_arch_string_raw': 'aarch64',
-            'cpu_vendor_id_raw': 'ARM',
-            'cpu_brand_raw': 'Cortex-A72',
-            'cpu_hz_actual_friendly': 1
-        }
-        self._test_post(
-            request_data=data,
-            request_token='user1',
-            expected_status_code=HTTP_201_CREATED
-        )
+    @parameterized.expand([
+        # ====================================================================================================
+        # cpu_bits
+        # - not in list
+        ("deny user to POST with cpu_bits not in list, 128", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 128,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_bits": ["value_not_in_list"]}}),
+        # ====================================================================================================
+        # cpu_count
+        # - min_value
+        ("deny user to POST with cpu_bits less than min value, 0", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 0,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_count": ["min_value"]}}),
+        ("deny user to POST with cpu_bits equal to min value, 1", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 1,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("deny user to POST with cpu_bits greater than min value, 2", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 2,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_201_CREATED}),
+        # - max_value
+        ("deny user to POST with cpu_bits less than max value, 127", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 127,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("deny user to POST with cpu_bits equal to max value, 128", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 128,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("deny user to POST with cpu_bits greater than max value, 129", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 129,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 2903998000},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_count": ["max_value"]}}),
+        # ====================================================================================================
+        # cpu_hz_actual_friendly
+        # - min_value
+        ("deny expected_error_code to POST with cpu_hz_actual_friendly less than min value, -1", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": -1},
+            "expected_status_code": HTTP_400_BAD_REQUEST,
+            "expected_error_code": {"cpu_hz_actual_friendly": ["min_value"]}}),
+        ("deny user to POST with cpu_hz_actual_friendly equal to min value, 0", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 0},
+            "expected_status_code": HTTP_201_CREATED}),
+        ("deny user to POST with cpu_hz_actual_friendly greater than min value, 1", "POST", {
+            "request_token": "user1",
+            "request_data": {
+                "used_port": 10003,
+                "cpu_arch": "X86_64",
+                "cpu_bits": 64,
+                "cpu_count": 16,
+                "cpu_arch_string_raw": "x86_64",
+                "cpu_vendor_id_raw": "GenuineIntel",
+                "cpu_brand_raw": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+                "cpu_hz_actual_friendly": 1},
+            "expected_status_code": HTTP_201_CREATED}),
+        # ====================================================================================================
+    ])
+    def test_boundary(self, _: str, method: str, data: Dict[str, object]) -> None:
+        self._test(method=method, data=data)
 
     # ====================================================================================================
 
@@ -1719,7 +1583,7 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
 # Anonymous
 # ====================================================================================================
 # Syntax Tests
-# - User can't update a CPUStat with a cpu_percent that is not a float
+# - User can"t update a CPUStat with a cpu_percent that is not a float
 # ====================================================================================================
 # Boundary Tests
 # - cpu_percent must be between 0.0 and 100.0
@@ -1744,9 +1608,9 @@ class CPUSpecTestCase(ReverseSSHAPITestCase):
 # Anonymous
 # ====================================================================================================
 # Syntax Tests
-# - User can't create a MemorySpec with a used_port that is already in use
-# - User can't create a MemorySpec with a used_port that is not a valid port number
-# - User can't create a MemorySpec with a memory_total that is not a big integer
+# - User can"t create a MemorySpec with a used_port that is already in use
+# - User can"t create a MemorySpec with a used_port that is not a valid port number
+# - User can"t create a MemorySpec with a memory_total that is not a big integer
 # ====================================================================================================
 # Boundary Tests
 # ====================================================================================================
